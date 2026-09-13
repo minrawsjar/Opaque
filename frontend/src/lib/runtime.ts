@@ -94,9 +94,20 @@ function savePinnedRoot(root: DirectoryTrustRoot): void {
 // A wallet hosted apart from its backend (Vercel) sets VITE_STACK_URL at build
 // time, e.g. https://api.example.com/stack.json. docs/hosting.md.
 export async function loadStack(url: string = import.meta.env['VITE_STACK_URL'] ?? 'stack.json'): Promise<StackConfig> {
-  const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`no stack config at ${url} — is backend/stack.ts running?`);
-  return JSON.parse(await response.text(), reviver) as StackConfig;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) throw new Error(`no stack config at ${url} — is backend/stack.ts running?`);
+    return JSON.parse(await response.text(), reviver) as StackConfig;
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError') {
+      throw new Error(`stack config timed out after 15s at ${url} — is the privacy backend reachable?`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export interface WalletRuntime {
