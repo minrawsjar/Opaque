@@ -50,6 +50,11 @@ Graph to learn from the public environment around every payment, so the next
 one can enter a deeper ring, take a less predictable route, and settle under
 stronger cover.
 
+This makes Opaque **network-adaptive by design**. When pool composition or relay
+conditions shift, the wallet and mesh do not keep using stale choices: Graph
+signals are re-read, decoys are re-ranked, relay transitions are recomputed,
+and CRE evaluates the current readiness state.
+
 ```text
 Arc events ─→ Opaque Studio ─→ privacy coordination signals
                                       ├─ wallet ranks best eligible decoys
@@ -191,6 +196,8 @@ hop 3 → eligible transition with a third operator
 
 Active cover traffic receives positive weight, while an overused relay or
 operator loses relative priority and cannot become a repeatable fingerprint.
+This is the mechanism that turns public Graph telemetry into a network-adaptive
+privacy path rather than a fixed three-hop route.
 
 ### Privacy as a measurable settlement condition
 

@@ -60,6 +60,13 @@ Opaque is built for that missing layer: **confidential USDC settlement that is
 private at the key, transaction, timing, and network levels—and designed for
 the day elliptic-curve cryptography can no longer be trusted.**
 
+### Network-adaptive privacy
+
+Opaque does not treat privacy as a fixed switch. As pool composition, relay
+reliability, traffic occupancy, and operator diversity change, The Graph feeds
+fresh public signals back into decoy ranking, Markov-chain route selection, and
+conditional settlement. Each payment adapts to the network it is entering.
+
 ---
 
 ## The product in one payment
