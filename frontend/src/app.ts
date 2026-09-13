@@ -465,21 +465,28 @@ async function onDeposit(): Promise<void> {
     status.textContent = 'Choose a whole amount of USDC, 1 or more.';
     return;
   }
+  // Open before any network work. Reading which pools can hide a note is
+  // eight queries across the mesh, and doing that first left the button dead
+  // for seconds with nothing on screen to say the click had registered.
+  button.disabled = true;
+  const progressDialog = el<HTMLDialogElement>('deposit-progress-dialog');
+  const progressLog = el('deposit-progress-log');
+  if (!progressDialog.open) progressDialog.showModal();
+  progressLog.textContent = 'Checking which pools can hide your notes…';
+  status.textContent = '';
+
   // The fewest notes, largest first, from pools that can hide them now.
   await refreshPools();
   const counts = makeAmount(amount, readySizes())!;
   const count = [...counts.values()].reduce((a, b) => a + b, 0);
   if (count > MAX_NOTES_PER_DEPOSIT) {
+    progressDialog.close();
+    button.disabled = false;
     status.textContent = `That is ${count} notes (${describe(counts)}); one deposit holds up to ${MAX_NOTES_PER_DEPOSIT}. Deposit it in two parts.`;
     return;
   }
   const notes = count === 1 ? 'one note' : `${count} notes`;
-  button.disabled = true;
-  const progressDialog = el<HTMLDialogElement>('deposit-progress-dialog');
-  const progressLog = el('deposit-progress-log');
-  if (!progressDialog.open) progressDialog.showModal();
   progressLog.textContent = 'Preparing your deposit…';
-  status.textContent = '';
   try {
     // Deposits come from the account: ONE transaction however many notes,
     // signed by its PQ key, where a plain wallet would need a confirmation
@@ -501,10 +508,14 @@ async function onDeposit(): Promise<void> {
         // "I pressed Deposit and nothing happened" begins.
         const affordable = Math.floor(have - DEPOSIT_GAS_USDC);
         if (affordable >= 1) {
+          progressDialog.close();
           status.textContent = `Your address holds ${have.toFixed(2)} USDC, which covers ${affordable} USDC of notes plus gas. Deposit ${affordable}, or send ${topUp.toFixed(2)} USDC more to deposit ${amount}.`;
           return;
         }
         status.textContent = `Send ${topUp.toFixed(2)} USDC to your Opaque address (${notes} and gas) from any wallet, then press Deposit again.`;
+        // Close first: the receive dialog is the thing to act on, and two open
+        // modals leave it behind the progress one.
+        progressDialog.close();
         el<HTMLDialogElement>('receive-dialog').showModal();
         return;
       }
