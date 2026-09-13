@@ -2,7 +2,7 @@
 
 > **The Graph, Subgraph Studio, network `arc-testnet`. AssemblyScript mappings, TypeScript clients.**
 
-Indexes the public side of Opaque on Arc: which deposits exist in each pool, how often each has been used in a ring, and how healthy each relay is. Three consumers decide from it: decoy selection, relay hop selection and the Chainlink CRE enclave's privacy score. The schema indexes pools and aggregates only, never which member or relay a payment used. The partner write-up is [partner-docs/the-graph.md](../partner-docs/the-graph.md).
+Indexes the public side of Opaque on Arc: which deposits exist in each pool, how often each has been used in a ring, and how healthy each relay is. The Graph is Opaque's privacy coordination layer: it turns those public conditions into shared inputs for local decoy ranking, local Markov route selection, and Chainlink CRE's privacy score. The schema indexes pools and aggregates only, never which member or relay a payment used. The partner write-up is [partner-docs/the-graph.md](../partner-docs/the-graph.md).
 
 ## Deployed
 
@@ -29,7 +29,9 @@ graph/
 │   ├── path-policy.ts          #   Markov relay hop selection
 │   ├── privacy-score.ts        #   The readiness score the enclave and the exit share
 │   └── index.ts                #   Exports
-└── test/                       # 8 tests: client, path policy, privacy score
+├── companion/                  # Read-only Graph Client composition
+├── sentinel/                   # Read-only MCP server + Agent0 descriptor
+└── test/                       # Client, policy, companion, and Sentinel tests
 ```
 
 ## Events and Entities
@@ -76,7 +78,7 @@ An index with errors, or one that is stale, gives no score, so payments wait for
 
 ```bash
 cd graph
-npm ci
+bun install --frozen-lockfile
 bun run subgraph:render      # subgraph.yaml from deployments/arc-testnet.json
 bun run subgraph:codegen
 bun run subgraph:build
@@ -89,9 +91,81 @@ Then point `services.graphUrl` at the new version. `render-manifest.ts` passes e
 ### Test
 
 ```bash
-npm test             # 8 tests
-npm run typecheck
+bun test
+bun run typecheck
 ```
+
+## Composed Privacy Context
+
+[`companion/`](./companion) uses **The Graph Client** to compose Opaque’s live
+Studio data with a pinned Graph Network USDC source. [`sentinel/`](./sentinel)
+exposes that context via three zero-argument MCP tools for agents, developers,
+and judges.
+
+```bash
+bun run companion:build:live
+bun run sentinel:serve
+```
+
+Opaque’s own Studio subgraph is public and rate-limited—**no API key is used**.
+Only the companion’s optional external Graph Network USDC source needs
+`GRAPH_GATEWAY_API_KEY` in a local `graph/.env`. Without it, Opaque’s
+operational subgraph remains separate and the companion reports external
+settlement context as `UNKNOWN`.
+
+### What the composition contributes
+
+```text
+Opaque Studio on Arc ──────┐
+                            ├─ Graph Client → public, aggregate-only privacy context
+Graph Network USDC source ─┘
+                                      ├─ Privacy Sentinel (judge/MCP inspection)
+                                      └─ never the payment path
+```
+
+The client combines two live Graph-provider sources without making either one
+a source of private payment data. It reports only public aggregate conditions:
+pool/relay readiness from Opaque Studio and optional recent Arbitrum USDC
+context from The Graph Network. It never receives the real note, recipient,
+chosen decoys, route, proof, sealed intent, or authorization.
+
+The wallet uses Opaque Studio's public candidate attributes to **rank the
+strongest eligible decoys locally**: low ring reuse, low coarse funding
+concentration, healthy activity, and age diversity. Graph informs that local
+ranking; it never chooses a payer's final ring or route.
+
+### Public MCP contract
+
+| Tool | Returns | Inputs / authority |
+|---|---|---|
+| `get_privacy_context` | Aggregate ring freshness, mesh health, and external context state. | Zero inputs; cannot inspect a payment. |
+| `explain_privacy_readiness` | A human-readable explanation of the current aggregate condition. | Zero inputs; cannot release or delay an intent. |
+| `list_public_privacy_signals` | The signal families used by the public model. | Zero inputs; cannot choose decoys or a route. |
+
+The MCP service makes the same aggregate privacy context inspectable without
+requiring a user to disclose a payment, recipient, route, or selected ring.
+
+### Public Privacy Sentinel deployment
+
+The judge-facing Sentinel is a separate, read-only Railway service. It exposes
+`/healthz` and Streamable HTTP MCP at `/mcp`; it cannot access the payment
+stack or accept payment inputs. Follow the [Sentinel deployment guide](./sentinel/README.md#deploy-as-an-isolated-railway-service) and set only `GRAPH_GATEWAY_API_KEY` in that Railway service.
+
+Its Agent0 descriptor can be pointed at the public `/mcp` URL after Railway
+deployment.
+
+## Reusable EVM Privacy Signals Substreams
+
+[`../indexer/privacy-signals`](../indexer/privacy-signals) is a standalone
+Substreams EVM package. It decodes the same public `Deposited`, `RingUsed`,
+`RelayAnnounced`, and `RelayHealth` event ABI surface and emits one
+aggregate-only `PrivacySignalBlock` per block. It deliberately omits
+commitments, depositors, recipients, ring members, chosen routes, endpoints,
+and KEM material.
+
+This gives the privacy coordination model a reusable EVM indexing product:
+another deployment can consume the same typed aggregate output without
+depending on Opaque's wallet, mesh, CRE, contracts, or database.
 
 ## Tech Stack
 
