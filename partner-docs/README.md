@@ -27,4 +27,4 @@ What can a judge inspect live or in source?
 What privacy boundary does the integration preserve?
 ~~~
 
-[Back to the main README](../README.md) · [Protocol specification](../docs/spec-v2.md) · [Deployment map](../deployments/arc-testnet.json)
+[Back to the main README](../README.md) · [Module interfaces](../docs/interfaces.md) · [Deployment map](../deployments/arc-testnet.json)

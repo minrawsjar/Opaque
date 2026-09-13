@@ -12,18 +12,18 @@
 
 <div align="center">
 
-[`Live Arc subgraph`](https://api.studio.thegraph.com/query/1760100/opaque/v0.3.0) · [`Privacy Sentinel`](https://<sentinel-domain>/healthz) · [`MCP endpoint`](https://<sentinel-domain>/mcp) · [`Schema`](../graph/schema.graphql) · [`Graph Client composition`](../graph/companion)
+[`Live Arc subgraph`](https://api.studio.thegraph.com/query/1760100/opaque/v0.3.0) · [`Privacy Sentinel`](https://opaque-production.up.railway.app/healthz) · [`MCP endpoint`](https://opaque-production.up.railway.app/mcp) · [`Schema`](../graph/schema.graphql) · [`Graph Client composition`](../graph/companion)
 
 </div>
 
 ---
 
-## Opaque Privacy Sentinel
+## Composed live Graph infrastructure
 
-**Privacy Sentinel is Opaque’s public Graph intelligence product.** It uses
-The Graph Client to compose live Arc privacy conditions with an independent
-Arbitrum USDC context, then exposes the combined public state for judges,
-agents, and developers.
+Opaque ships two connected Graph products. The **Privacy Intelligence Layer**
+turns live Arc events into the signals that coordinate every private payment;
+the **Privacy Sentinel MCP** makes that same composed context inspectable by
+judges, agents, and developers.
 
 ```text
 Arc Studio ───────────────────────┐
@@ -31,14 +31,19 @@ Arc Studio ───────────────────────
 Arbitrum USDC Graph source ──────┘
 ```
 
-It answers one useful question in real time: **are the public conditions that
-give an Opaque payment cover actually strong right now?** The full signal model
-and interface appear below; the payment rail continues to use that same Graph
-intelligence for decoys, routing, and privacy-window settlement.
+The Graph Client is the composition boundary between them. It joins Opaque’s
+operational Arc source with an independent public USDC context, while keeping
+the payment rail’s private choices local. In real time it answers: **are the
+public conditions that give an Opaque payment cover actually strong right now?**
+
+| Product | Role | Interface |
+|---|---|---|
+| **Privacy Intelligence Layer** | Produces versioned ring, mesh, and settlement-readiness signals used by wallet, mesh, and CRE. | [`graph/`](../graph) |
+| **Privacy Sentinel MCP** | Publishes the composed, aggregate-only context for inspection and automation. | [`/mcp`](https://opaque-production.up.railway.app/mcp) |
 
 ---
 
-## A privacy intelligence loop
+## Opaque’s privacy intelligence layer
 
 Most privacy systems make one payment private in isolation. Opaque uses The
 Graph to learn from the public environment around every payment, so the next
@@ -67,34 +72,52 @@ ring, mesh, and settlement mechanisms adapt together.
 
 ---
 
-## Composed live Graph infrastructure
+## Independent Arbitrum context layer
+
+The Arc subgraph is the operational source of truth for Opaque. We deliberately
+add a second, independent Graph Network source: a standardized Arbitrum USDC
+subgraph. It contributes broad public transfer activity and indexed-block
+freshness, not private Opaque state.
+
+This is useful in three concrete ways: it gives the Sentinel an external
+liveness baseline, demonstrates that the same typed composition works across
+chains, and lets judges inspect a meaningful cross-protocol data product rather
+than a single bespoke query. The independent signal is reported alongside Arc
+readiness, so a stale Arc index or a quiet external market is visible instead
+of being silently folded into one score.
 
 ```text
-Opaque Studio — Arc testnet
-pools · ring pressure · relay health
-                  ├─→ wallet / mesh / CRE policy
-                  │
-                  └─→ The Graph Client ─→ Privacy Sentinel / MCP
-                                            public Arc privacy context
-
-EVM Privacy Signals Substreams ───────→ reusable aggregate-only data product
+Arc Studio (operational Opaque state) ─┐
+                                      ├─→ Graph Client ─→ Privacy Sentinel / MCP
+Arbitrum USDC (independent context) ──┘
 ```
 
 | Graph product | Opaque use | Evidence |
 |---|---|---|
-| **Subgraph Studio** | Live Arc pool and relay events power the core privacy coordination loop. | [`opaque/v0.3.0`](https://api.studio.thegraph.com/query/1760100/opaque/v0.3.0) |
-| **The Graph Client** | Provides a typed, composable query layer over Opaque’s live Arc privacy state. | [`graph/companion`](../graph/companion) |
-| **Subgraph MCP** | Serves the composed context to judges, agents, and developers. | [`/mcp`](https://<sentinel-domain>/mcp) |
+| **Arc Subgraph Studio** | Live pool, ring, and relay events power the operational intelligence layer. | [`opaque/v0.3.0`](https://api.studio.thegraph.com/query/1760100/opaque/v0.3.0) |
+| **Arbitrum USDC Graph source** | Independent standardized context for liveness and public activity; it cannot authorize or settle Opaque payments. | [Graph Network](https://thegraph.com/explorer) |
+| **The Graph Client** | Typed composition boundary joining both sources into one schema-safe context. | [`graph/companion`](../graph/companion) |
+| **Privacy Sentinel MCP** | Serves the composed context to judges, agents, and developers. | [`/mcp`](https://opaque-production.up.railway.app/mcp) |
 | **Substreams** | Reusable EVM module emits the same aggregate privacy-signal contract from pool and relay events. | [`indexer/privacy-signals`](../indexer/privacy-signals) |
 
-This is a native Graph composition: Arc Studio is Opaque’s operational privacy
-source of truth; the Arbitrum USDC source is an independent contextual signal;
+This is a native Graph composition: Arc Studio remains Opaque’s operational
+privacy source of truth; Arbitrum supplies an independent contextual signal;
 Graph Client composes both; and Privacy Sentinel exposes the combined public
-context. The sidecar enriches inspection but never controls an Opaque payment.
+context. The independent context enriches inspection but never controls an
+Opaque payment.
+
+### Why Arbitrum is intentional
+
+Using Arbitrum keeps the second product independent from the Arc deployment it
+is helping explain. It gives us a standardized, high-activity USDC dataset to
+exercise the same typed composition boundary, while making it impossible for
+the independent source to quietly feed back private payment facts. If Arc
+indexing is delayed or degraded, the Sentinel reports that separately instead
+of treating one provider’s view as ground truth.
 
 ---
 
-## Composed Privacy Sentinel
+## Privacy Sentinel MCP product
 
 Privacy Sentinel makes Opaque’s privacy intelligence directly inspectable. It
 builds a typed public context from two live Graph query surfaces:
@@ -125,7 +148,7 @@ The public MCP interface provides three direct views of this model:
 
 | Tool | Returns |
 |---|---|
-| `get_privacy_context` | Current aggregate ring, mesh, and sidecar context. |
+| `get_privacy_context` | Current aggregate ring, mesh, and independent external context. |
 | `explain_privacy_readiness` | Why observed privacy conditions are strong, weak, or stale. |
 | `list_public_privacy_signals` | The signal families Opaque uses to coordinate privacy. |
 
@@ -200,6 +223,23 @@ Opaque indexes the crowd, never the private choice made from it.
 
 ---
 
+## Why the shared standard makes Opaque easier to build
+
+The prize asks what became easier because a shared schema or composed product
+was used. In Opaque, the answer is concrete:
+
+| Before composition | With Graph’s standardized products |
+|---|---|
+| Wallet, mesh, CRE, and the demo surface would each maintain a different event parser. | One typed Graph Client schema feeds all three decisions and the MCP inspection surface. |
+| Relay and pool health would be hand-joined with ad-hoc RPC calls. | Standardized subgraph entities and aggregate fields make ring and mesh signals queryable in one request. |
+| A second-chain context would require a bespoke adapter and new trust assumptions. | The same composition boundary adds Arbitrum’s standardized USDC source without changing Opaque’s core contracts. |
+| A reusable indexer would be tied to Opaque’s deployment. | The Substreams module emits an aggregate-only EVM signal contract that other pools and relay networks can consume. |
+
+This is more than querying one subgraph: two live products, one typed composition
+layer, and a reusable event model. The shared shape is what lets Opaque improve
+privacy decisions and expose them consistently without duplicating integration
+logic.
+
 ## Reusable EVM Privacy Signals
 
 [`indexer/privacy-signals`](../indexer/privacy-signals) packages Opaque’s
@@ -218,8 +258,8 @@ Opaque’s wallet, settlement, or backend.
 | Surface | Link |
 |---|---|
 | Live Arc subgraph | [`opaque/v0.3.0`](https://api.studio.thegraph.com/query/1760100/opaque/v0.3.0) |
-| Sentinel health | [`/healthz`](https://<sentinel-domain>/healthz) |
-| Sentinel MCP | [`/mcp`](https://<sentinel-domain>/mcp) |
+| Sentinel health | [`/healthz`](https://opaque-production.up.railway.app/healthz) |
+| Sentinel MCP | [`/mcp`](https://opaque-production.up.railway.app/mcp) |
 | GraphQL schema | [`graph/schema.graphql`](../graph/schema.graphql) |
 | Graph Client configuration | [`graph/companion/.graphclientrc.yml`](../graph/companion/.graphclientrc.yml) |
 | Sentinel implementation | [`graph/sentinel`](../graph/sentinel) |

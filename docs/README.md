@@ -1,18 +1,15 @@
-# Docs: Specification and Design Notes
+# Docs: Design and Operations
 
 > **Why Opaque is built the way it is, and how to run it.**
 
 The project overview is the [main README](../README.md). How each partner's technology is used is in [partner-docs/](../partner-docs/).
 
-## Read in This Order
+## Start Here
 
 | Document | What it is |
 |---|---|
-| [spec-v2.md](spec-v2.md) | The technical specification and threat model. Supersedes every earlier spec |
-| [context-doc_1.md](context-doc_1.md) | Full context, including the decision log: why things were cut. Read §3 before reopening a settled debate |
 | [interfaces.md](interfaces.md) | The frozen exports each module may depend on |
 | [workspace.md](workspace.md) | Where each part of the code lives, and the boundaries between them |
-| `../output/pdf/opaque-v1-team-handoff.pdf` | The V1 execution contract: frozen interfaces, build steps and gates |
 
 ## Design Notes
 
@@ -30,11 +27,7 @@ The project overview is the [main README](../README.md). How each partner's tech
 | [deployment-arc-testnet.md](deployment-arc-testnet.md) | Every deployed address, explained. The data itself is `deployments/arc-testnet.json` |
 | [testing-the-wallet.md](testing-the-wallet.md) | Running the wallet against real Arc, and what is real versus standing in |
 
-## Team Handoffs
-
-[handoff-manan.md](handoff-manan.md), [handoff-aditya.md](handoff-aditya.md) and [taskboard-aditya.md](taskboard-aditya.md) are the per-area handoffs written during the build. They record intent at the time; the code and the READMEs beside it are current.
-
-## Settled Since the Spec Was Written
+## Current Design Decisions
 
 | Question | Answer | Where |
 |---|---|---|
@@ -44,8 +37,6 @@ The project overview is the [main README](../README.md). How each partner's tech
 | Can a relay tell a payment from a query? | No. The message kind is invisible until the last hop | [backend/mesh/protocol.md](../backend/mesh/protocol.md) |
 | May the subgraph publish a funding cluster per member? | No. It publishes a coarse concentration bucket, only when five or more members share a funder | [graph/README.md](../graph/README.md) |
 | Can a spend bypass the release decision? | Not through the executor: it cannot open a payment until the enclave releases that payment's key, and it refuses payments not sealed to the CRE key | [opaque-cre/README.md](../opaque-cre/README.md) |
-
-[spec.md](spec.md) is v1, kept for the record. **Do not build from it.** It specifies a lattice ring signature that v2 replaced with FORS+C and an MPC-in-the-head proof, because no on-chain lattice verifier exists anywhere.
 
 ## Superseded Scaffolds
 

@@ -18,7 +18,7 @@ Opaque's payments are sealed to a key that exists only inside a Chainlink CRE en
 
 ## What We Built
 
-A private USDC payment on Arc is hidden among eight deposit ring. Sent the moment it is signed, it can still be matched to its deposit by timing. So the payer can ask the payment to wait until the pool is strong enough, with a deadline. Those terms, and the recipient, are the sensitive inputs. They go to the enclave and nowhere else.
+A private USDC payment on Arc is hidden among eight same-denomination deposits in a ring. Sent the moment it is signed, it can still be matched to its deposit by timing. So the payer can ask the payment to wait until the pool is strong enough, with a deadline. Those terms, and the recipient, are the sensitive inputs. They go to the enclave and nowhere else.
 
 ```
 Wallet: "Send 5 USDC to 0xabc…", wait for stronger privacy, settle by 18:00

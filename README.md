@@ -1,22 +1,32 @@
 <div align="center">
 
-# opaque
+<img src="frontend/media/logo.png" alt="Opaque — post quantum" width="420">
 
-### Private USDC settlement for the quantum era.
+
+### Private USDC settlement for the quantum era
 
 [![Settlement](https://img.shields.io/badge/settlement-USDC%20on%20Arc-FF7A18?style=flat-square)](https://arc.network/)
 [![Chainlink](https://img.shields.io/badge/conditional%20release-Chainlink%20CRE-375BD2?style=flat-square)](partner-docs/chainlink.md)
 [![The Graph](https://img.shields.io/badge/privacy%20coordination-The%20Graph-6747ED?style=flat-square)](partner-docs/the-graph.md)
 [![Account](https://img.shields.io/badge/account-ERC--4337%20%2B%20FORS%2BC-FF7A18?style=flat-square)](packages/pq-wallet/)
 
-**Opaque is not just a wallet. It is a private settlement rail that protects the key, the on-chain spend, and the network origin together.**
+**Opaque is a post-quantum private settlement rail for USDC on Arc. It keeps four
+linkages out of the settlement trail: wallet identity, payment timing, RPC/query
+activity, and IP origin—coordinating key, spend, network, and release privacy in
+one system.**
 
-[Launch Opaque](https://www.opaque.credit/app.html) · [Install extension](extension/README.md#install-from-the-zip) · [Architecture](#architecture) · [Partner evidence](partner-docs/README.md)
+[Launch Opaque](https://www.opaque.credit/app.html) · [Install extension](extension/README.md#install-from-the-zip) · [Architecture](#architecture) · [Partners](partner-docs/README.md)
 
-</div>
 ![Opaque end-to-end architecture](diagrams/e2e.svg)
 
+</div>
+
 ---
+
+## Partner-wise READMEs
+[The Graph](partner-docs/the-graph.md)
+ · [Arc](partner-docs/arc.md)
+ · [Chainlink](partner-docs/chainlink.md)
 
 ## The market gap
 
@@ -30,6 +40,25 @@ Most on-chain privacy systems protect only the final transaction. That leaves th
 | **Timing** | An immediate spend can be correlated with its funding event. | A confidential privacy window waits for stronger conditions or settles no later than the user’s deadline. |
 
 **Our position:** Opaque is quantum-transition-ready private USDC infrastructure—not a privacy skin around a conventional wallet, and not a mixer that ignores network metadata.
+
+## The confidential-payments market
+
+Stablecoins are becoming the settlement layer for payroll, treasury movement,
+merchant payouts, and cross-border value transfer. Those users need more than
+a hidden calldata field: they need the payer’s authority, payment linkage,
+execution time, and network origin to remain difficult to correlate.
+
+Today’s confidential-payment options usually cover only one part of that
+problem. A pool can hide the sending address while leaving RPC/IP metadata
+visible; a conventional smart wallet can improve UX while retaining
+elliptic-curve authorization; a privacy protocol can hide the transfer while
+settling immediately into a predictable timing pattern. None provides one
+coherent, post-quantum path from wallet authorization to network transport to
+conditional settlement.
+
+Opaque is built for that missing layer: **confidential USDC settlement that is
+private at the key, transaction, timing, and network levels—and designed for
+the day elliptic-curve cryptography can no longer be trusted.**
 
 ---
 
@@ -63,18 +92,28 @@ USDC deposit → fixed-denomination private note → local 8-member ring
 
 <a id="architecture"></a>
 
+### Architecture diagrams
+
+| Diagram | What it covers |
+|---|---|
+| [End-to-end architecture](diagrams/e2e.svg) | Wallet → ring → relay mesh → Graph → CRE → Arc settlement. |
+| [Wallet and account authority](diagrams/wallet.svg) | ERC-4337 account flow, FORS+C authorization, and key lifecycle. |
+| [Ring proof and note spend](diagrams/proof.svg) | Same-denomination ring construction, proof, nullifier, and pool spend. |
+| [Graph privacy feedback loop](diagrams/graph.svg) | Intelligence signals, decoy/routing decisions, and feedback from settlement. |
+| [CRE + Arc settlement](diagrams/cre-arc.svg) | Confidential policy release and Arc contract settlement path. |
+
 | Layer | Crux | Technical implementation |
 |---|---|---|
 | **Quantum-safe authority** | A future quantum attacker should not turn a published account key into control of the wallet. | ERC-4337 v0.7 smart account; FORS+C signatures verified through Solidity and PQKeyRegistry; pre-committed rotation and bounded key use. |
 | **Private settlement** | A pool pays the recipient without naming which note in an eight-member same-denomination set was opened. | Hash-based MPC-in-the-head ring proof, local note vault, one fresh nullifier, membership checks, and a post-quantum attestation gate. |
 | **Network privacy** | Infrastructure should not see who asked to pay. | Three ML-KEM-768 onion layers, AES-256-GCM payload protection, padding, batching, delay, and operator-diverse paths. |
-| **Privacy coordination** | Privacy is a condition, not a toggle. | The Graph indexes public pool and relay signals; the wallet selects the strongest eligible decoys locally and Chainlink CRE evaluates the sealed threshold/deadline policy. |
+| **Privacy coordination** | Privacy is a condition, not a toggle. | The Graph’s Arc intelligence layer indexes public pool and relay signals; the wallet selects the strongest eligible decoys locally, while Chainlink CRE evaluates the sealed threshold/deadline policy. |
 
 ### The Graph closes the feedback loop
 
 ![The Graph privacy feedback loop](diagrams/graph.svg)
 
-The Graph is Opaque’s **privacy coordination layer—the brain of Opaque’s privacy mechanism.** It does not choose a real note or route. It supplies public conditions; the wallet selects the strongest eligible decoys locally.
+The Graph is Opaque’s **privacy coordination layer—the brain of Opaque’s privacy mechanism.** It helps the wallet select the strongest eligible decoys locally.
 
 ~~~text
 ring signals: pool population · note age · ring reuse · concentration
@@ -85,17 +124,29 @@ local decoy selection + local Markov route policy + CRE release score
 settlement produces fresh signals for the next payment
 ~~~
 
-Read the full integration: [The Graph partner write-up](partner-docs/the-graph.md).
+The Graph Client composes that operational Arc state with an independent
+standardized Arbitrum USDC context, and Privacy Sentinel exposes the combined
+aggregate view through MCP. Read the full integration in [The Graph partner write-up](partner-docs/the-graph.md).
+
+### Privacy Sentinel: the inspectable Graph product
+
+Privacy Sentinel is the public interface to that composition. It publishes
+aggregate ring readiness, mesh health, indexed-block freshness, and external
+USDC context through a typed MCP surface—enough for a judge or agent to inspect
+why privacy conditions are strong or weak, without exposing a user’s note,
+recipient, route, or identity.
+
+[Open Privacy Sentinel](https://opaque-production.up.railway.app/healthz) · [MCP endpoint](https://opaque-production.up.railway.app/mcp)
 
 ---
 
-## Built with partners, not wrappers
+## Partner integrations
 
 | Partner | What is live | Why it is core |
 |---|---|---|
 | **Arc + Circle** | USDC settlement, USDC gas, ERC-4337 accounts, seven denomination pools, CCTP V2 entry from Sepolia. | The product is programmable private USDC on Arc—not a token adapter. |
 | **Chainlink CRE** | Active opaque-confidential-release workflow in AWS Nitro; Vault DON secrets; 30-second confidentiality policy ticks. | CRE is the authority that can release a sealed payment under the payer’s conditions. |
-| **The Graph** | Arc testnet subgraph over pool and relay events, consumed by wallet routing/decoys and CRE scoring. | It makes privacy adaptive across payments instead of static or blind. |
+| **The Graph** | Arc intelligence layer for wallet/CRE coordination, plus a typed Graph Client composition with an independent Arbitrum USDC context and Privacy Sentinel MCP. | It makes privacy adaptive across payments and gives judges a reusable, inspectable Graph product—not a one-off query. |
 
 <div align="center">
 
@@ -112,6 +163,7 @@ Read the full integration: [The Graph partner write-up](partner-docs/the-graph.m
 | **Wallet** | [opaque.credit/app.html](https://www.opaque.credit/app.html) and [browser extension](extension/README.md#install-from-the-zip) |
 | **Arc testnet** | Chain ID 5042002 · [Explorer](https://testnet.arcscan.app) · [deployment registry](deployments/arc-testnet.json) |
 | **Graph** | [opaque/v0.3.0 Subgraph Studio query endpoint](https://api.studio.thegraph.com/query/1760100/opaque/v0.3.0) |
+| **Privacy Sentinel** | [Health](https://opaque-production.up.railway.app/healthz) · [MCP](https://opaque-production.up.railway.app/mcp) |
 | **Backend** | [stack.json](https://opaque-stack-production.up.railway.app/stack.json) |
 | **CRE** | opaque-confidential-release · workflow ID 003e31eff41f5e26b3a5c7414efba42245ba4687550a43986e15e51e4e71686e |
 | **Contracts** | [Arc deployment map](deployments/arc-testnet.json), verified in chain deployment tests |
@@ -137,7 +189,7 @@ Read the full integration: [The Graph partner write-up](partner-docs/the-graph.m
 | Route authority | Signed pinned relay directory | A Graph query inventing a relay identity or key. |
 | Early release | Fresh, healthy Graph observations | Treating a stale or broken index as strong privacy. |
 
-The current V1 proof verifier is split: the hash-based MPC-in-the-head proof is checked by the attester, while Arc enforces denomination, ring membership, one-time nullifier use, recipient binding, and the live post-quantum attestation. See [the full threat model and decision log](docs/spec-v2.md).
+The current V1 proof verifier is split: the hash-based MPC-in-the-head proof is checked by the attester, while Arc enforces denomination, ring membership, one-time nullifier use, recipient binding, and the live post-quantum attestation. See the module contracts in [docs/interfaces.md](docs/interfaces.md).
 
 ---
 

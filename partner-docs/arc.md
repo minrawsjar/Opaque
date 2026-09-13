@@ -1,6 +1,6 @@
 <div align="center">
 
-# Opaque × Arc + Circle
+# Opaque × Arc
 
 ### Programmable private USDC settlement, built natively on Arc.
 
@@ -116,8 +116,8 @@ approve + depositForBurn on Sepolia, domain 0 → Arc domain 26
 **What worked well**
 
 - Arc testnet already exposes the ERC-4337 EntryPoint, so Opaque needed no account-abstraction infrastructure deployment
-- USDC gas removes an onboarding asset: the account is funded and pays with what it exists to send.
-- CCTP v2 was smooth and helpful
+- USDC gas removes an onboarding asset: the account is funded and pays with the same asset it sends.
+- CCTP V2 was smooth and helpful
 
 
 **What would make this easier**
