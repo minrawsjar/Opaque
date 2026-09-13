@@ -12,6 +12,12 @@ COPY graph ./graph
 WORKDIR /app/graph
 RUN bun install --frozen-lockfile
 
+# Graph Client generates the ignored `.graphclient/` directory at startup.
+# Keep the runtime non-root, but give it write access only to this generated
+# artifact directory; source, dependencies, and credentials remain immutable.
+RUN mkdir -p /app/graph/companion/.graphclient \
+  && chown -R sentinel:sentinel /app/graph/companion
+
 USER sentinel
 ENV PORT=8787
 
