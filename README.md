@@ -1,343 +1,186 @@
-# Opaque
+<div align="center">
 
-**Private USDC payments on Arc, from a wallet a quantum computer cannot take over.**
+# opaque
 
-Opaque is a post-quantum wallet and private payment protocol for USDC on Arc. The key that controls your account is hash-based. The proof that hides which deposit paid uses only hashes. The relays that carry your payment encrypt every hop with ML-KEM. A Chainlink CRE confidential workflow holds each payment until the pool hiding it is strong enough, and The Graph tells it when that is.
+### Private USDC settlement for the quantum era.
 
-> Deposit 10 USDC. Send 5 to a friend. On chain, a pool pays them, and nobody can tell which of eight deposits the money came from.
+[![Settlement](https://img.shields.io/badge/settlement-USDC%20on%20Arc-FF7A18?style=flat-square)](https://arc.network/)
+[![Chainlink](https://img.shields.io/badge/conditional%20release-Chainlink%20CRE-375BD2?style=flat-square)](partner-docs/chainlink.md)
+[![The Graph](https://img.shields.io/badge/privacy%20coordination-The%20Graph-6747ED?style=flat-square)](partner-docs/the-graph.md)
+[![Account](https://img.shields.io/badge/account-ERC--4337%20%2B%20FORS%2BC-FF7A18?style=flat-square)](packages/pq-wallet/)
 
-| | |
-|---|---|
-| **Web wallet** | [opaque.credit/app.html](https://www.opaque.credit/app.html) |
-| **Browser extension** | [opaque-extension.zip](https://www.opaque.credit/opaque-extension.zip) for Chrome, Brave and Edge ([install steps](extension/README.md#install-from-the-zip)) |
-| **Chainlink CRE workflow** | `opaque-confidential-release`, status ACTIVE, ID `003e31eff41f5e26b3a5c7414efba42245ba4687550a43986e15e51e4e71686e` |
-| **Subgraph** | [`opaque/v0.3.0`](https://api.studio.thegraph.com/query/1760100/opaque/v0.3.0) on Subgraph Studio, network `arc-testnet` |
-| **Backend** | [`stack.json`](https://opaque-stack-production.up.railway.app/stack.json) on Railway |
-| **Network** | Arc testnet, chain id 5042002, [explorer](https://testnet.arcscan.app) |
+**Opaque is not just a wallet. It is a private settlement rail that protects the key, the on-chain spend, and the network origin together.**
 
-## The Problem
+[Launch Opaque](https://www.opaque.credit/app.html) · [Install extension](extension/README.md#install-from-the-zip) · [Architecture](#architecture) · [Partner evidence](partner-docs/README.md)
 
-Every wallet in use today signs with an elliptic curve key. A large enough quantum computer can work out that private key from the public key, and the public key is on chain from the first transaction an account ever sends. That machine does not exist yet. But anything on chain, and any encrypted payment, can be recorded today and broken later. NIST has already standardised the replacements and plans to retire today's curves by 2035, so the switch has to happen before the machine exists, not after.
+</div>
+![Opaque end-to-end architecture](diagrams/e2e.svg)
 
-Privacy has the same problem. The tools that hide payments today rest on elliptic curves too: pairing-based SNARKs and Diffie-Hellman key exchange. Whoever stores today's chain history gets it all back once those break.
+---
 
-### What a payment leaks today
+## The market gap
 
-- **The key.** One signature puts the public key on chain, and a quantum computer turns it into the private key.
-- **The payment.** Every USDC transfer names the sender, the recipient and the amount.
-- **The network.** The RPC and every server your wallet touches see your IP address next to what you asked for.
-- **The timing.** A payment that settles the moment it is sent can be matched to the deposit that funded it.
+Most on-chain privacy systems protect only the final transaction. That leaves three earlier points of failure:
 
-## The Solution
-
-Opaque replaces each of those with a mechanism that does not rest on elliptic curves.
-
-| What it protects | How | Code |
+| Exposure | What breaks | Opaque’s answer |
 |---|---|---|
-| Your account | FORS+C hash-based signatures, checked on chain by an ERC-4337 account | [contracts](contracts/), [packages/pq-wallet](packages/pq-wallet/) |
-| Who paid | An 8-note ring, proved with ZKBoo (MPC-in-the-head): hashes and AES only | [backend/zk](backend/zk/) |
-| Where you are | A 3-hop onion mesh over 6 relays, ML-KEM-768 per hop | [backend/mesh](backend/README.md#mesh) |
-| When it settles | A Chainlink CRE confidential workflow waits until the pool is strong enough | [opaque-cre](opaque-cre/) |
-| Which decoys and routes | The Graph indexes pool sizes, note usage and relay health | [graph](graph/) |
+| **Authorization** | A public elliptic-curve key can be harvested today and attacked later. | A FORS+C hash-based key controls an ERC-4337 smart account. |
+| **Settlement** | A public transfer reveals the payer, recipient, and note linkage. | An eight-member hash-based MPC-in-the-head ring proves one eligible note was spent without naming it. |
+| **Network origin** | RPCs and services can connect a wallet IP to a payment request. | Every wallet request uses a fresh three-hop ML-KEM onion path. |
+| **Timing** | An immediate spend can be correlated with its funding event. | A confidential privacy window waits for stronger conditions or settles no later than the user’s deadline. |
 
-### Capabilities
+**Our position:** Opaque is quantum-transition-ready private USDC infrastructure—not a privacy skin around a conventional wallet, and not a mixer that ignores network metadata.
 
-**Post-quantum account on Arc.** Your account is an ERC-4337 smart account whose only signer is a FORS+C key made in your browser. The signature is checked on chain in Solidity using nothing but keccak. No ECDSA key, owner or admin can rotate it.
+---
 
-**Eight-note ring, hashes only.** Deposits become notes of 1, 2, 5, 10, 20, 50 or 100 USDC. A payment proves "I own one of these eight notes" without saying which one. The browser builds the proof: 219 repetitions of ZKBoo, 128-bit soundness, 1.08 MiB. That is too large for any chain, so an attester checks it off chain and signs with its own post-quantum key. The pool then checks that all eight notes are real deposits and that the note has not been spent.
+## The product in one payment
 
-**Three-hop relay mesh.** Every payment and every wallet read goes through three of six relays, drawn fresh each time. Each hop is encrypted with ML-KEM-768 and AES-256-GCM, and traffic is padded, batched and delayed. The RPC and the bundler see the exit, never your wallet.
+~~~text
+USDC deposit → fixed-denomination private note → local 8-member ring
+  → sealed payment → 3-hop relay mesh → confidential privacy policy
+  → Arc pool settlement → fresh Graph signals for the next payment
+~~~
 
-**Payments that wait for privacy.** Tick "Wait for stronger privacy" and pick a latest-settlement time. The recipient, the deadline and the minimum privacy score are sealed to a key that exists only inside a Chainlink CRE enclave. Every 30 seconds the enclave scores each pool from The Graph and decides to wait, release or deny. The backend can read a payment only after the enclave releases it.
+<table>
+<tr>
+<td width="33%"><b>1. Own with a PQ key</b><br/>The browser creates a local FORS+C key. It authorizes an ERC-4337 account through <code>PQKeyRegistry</code>; no ECDSA owner can rotate or drain it.</td>
+<td width="33%"><b>2. Spend among eight</b><br/>USDC becomes 1, 2, 5, 10, 20, 50, or 100 USDC notes. The wallet proves ownership of one same-value note among eight, locally.</td>
+<td width="33%"><b>3. Release under conditions</b><br/>Recipient, threshold, and deadline are sealed to Chainlink CRE. It releases early only when public privacy conditions are strong, or at the user’s latest-settlement deadline.</td>
+</tr>
+</table>
 
-**Decoys and routes weighted by The Graph.** The subgraph indexes deposits, ring usage and relay health on Arc. The wallet uses it to choose decoys that look like real spends and relays that are healthy and not overused. The enclave uses it to score each pool. Members and keys always come from the chain and a signed directory: The Graph can weigh them, but never add one.
+### What a private payment does—and does not—reveal
 
-**USDC in, USDC out.** Fund your account by sending USDC to its address from anywhere, including over Circle CCTP from Ethereum Sepolia. Gas on Arc is paid in USDC. Withdraw everything to any address in one step.
-
-**One wallet, two places.** The same page runs at opaque.credit and in the Chrome side panel. It needs no MetaMask.
-
-## Technical Architecture
-
-### Core Technologies
-
-| Technology | Purpose |
+| Public on Arc | Kept private from the chain, RPC, and ordinary backend |
 |---|---|
-| **TypeScript on Node 22.18+** | Every package runs `.ts` directly; the only build step is Vite for the frontend |
-| **Solidity 0.8.26 and Foundry** | Accounts, key registry, pools, verifiers, relay directory |
-| **ZKBoo** | The ring proof, MPC-in-the-head over AES-128 and keccak |
-| **FORS+C** | Few-time hash-based signatures for accounts and the attester |
-| **ML-KEM-768** (`@noble/post-quantum`) | Mesh onion layers, and sealing payments to the CRE enclave |
-| **Chainlink CRE** | Confidential Workflow in an AWS Nitro enclave |
-| **The Graph** | Subgraph on Arc testnet, hosted on Subgraph Studio |
-| **Arc and USDC** | Settlement chain; USDC is both the money and the gas |
-| **Circle CCTP V2** | Bridging USDC from Ethereum Sepolia to Arc |
-| **ERC-4337 v0.7 and Pimlico** | Account deployment and UserOperations on Arc |
-| **viem** | Chain access, falling back across three Arc RPC providers |
-| **Vite, Vercel and Railway** | Wallet hosting, and the backend stack |
+| A deposit is attributable by design. | Which eligible deposit supplied the private spend. |
+| Pool denomination and the recipient at final settlement. | Sender identity, selected decoys, payment key, privacy threshold, and deadline. |
+| Aggregate relay health and pool events. | Wallet IP, direct Graph query, and relay path. |
 
-### System Architecture
+---
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                               WALLET                                 │
-│              opaque.credit, or the Chrome side panel                 │
-│                                                                      │
-│   FORS+C account key ─── Note vault ─── ZKBoo prover (Web Worker)    │
-│   (IndexedDB)            (8-note rings)  seals to the CRE key        │
-└───────────────────────────────────┬──────────────────────────────────┘
-                                    │ onion layers, 3 of 6 relays,
-                                    │ padded 32 KB chunks
-                                    ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                RELAY MESH (6 relays, ML-KEM-768 per hop)             │
-└───────────────────────────────────┬──────────────────────────────────┘
-                                    ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                     EXECUTOR (Railway, stack.ts)                     │
-│                                                                      │
-│   Sealed payments ─── Wallet reads ─── Proof check ─── Attester      │
-│   (cannot open)       (RPC, bundler)   (1.08 MiB)      (FORS+C)      │
-└───────┬───────────────────────▲──────────────────────────────┬───────┘
-        │ GET pending           │ POST decisions               │ spend
-        ▼                       │                              ▼
-┌───────────────────────────────┴──────┐  ┌────────────────────────────┐
-│    CHAINLINK CRE (AWS Nitro TEE)     │  │        ARC TESTNET         │
-│                                      │  │                            │
-│  every 30 s:                         │  │  PQ accounts (ERC-4337)    │
-│  open envelopes with the Vault key   │  │  PQKeyRegistry             │
-│  score each pool from The Graph      │  │  7 RING_8 pools, USDC      │
-│  WAIT, RELEASE or DENY               │  │  RelayDirectory            │
-└───────────────────▲──────────────────┘  └─────────────┬──────────────┘
-                    │ pool sizes, relay health          │ events
-┌───────────────────┴───────────────────────────────────▼──────────────┐
-│               THE GRAPH (Subgraph Studio, arc-testnet)               │
-│         RingPool · RingMember · RelayNode · RelayDirectory           │
-└──────────────────────────────────────────────────────────────────────┘
-```
+## Architecture
 
-**CRE decides, Railway carries.** The enclave is the only place a payment's recipient exists in plaintext before settlement. Railway runs what CRE cannot: servers that take traffic, state between runs, a 1.1 MiB proof check and a stateful signing key. It can delay or drop a payment, but it cannot read, redirect or hurry one.
+<a id="architecture"></a>
 
-→ **[Specification](docs/spec-v2.md)**: the protocol, the threat model and the decision log.
-
-→ **[Documentation index](docs/README.md)**: every document, in reading order.
-
-## Wallet Actions
-
-| Action | What happens | On chain |
+| Layer | Crux | Technical implementation |
 |---|---|---|
-| **Receive** | Shows your account address. Send USDC to it from any wallet, exchange or faucet. | A USDC transfer to your address |
-| **Deposit** | Splits the amount into notes of 1 to 100 USDC and deposits them in one UserOperation your PQ key signs. The first deposit also deploys the account. | `deposit(commitment)` per note, attributable by design |
-| **Send** | Picks notes, builds one ring proof per note, seals each payment to the CRE key and sends it through the mesh. | The pool pays the recipient; no sender is named |
-| **Wait for stronger privacy** | Holds the payment until the pool's privacy score reaches the level the wallet asks for, or until your deadline. | Same as Send, later |
-| **Privacy** | Shows the eight-note cover set and the relay route. Every member is drawn the same way. | None |
-| **Withdraw** | Sends all USDC in the account to an address you choose. | One UserOperation |
-| **Backup and Restore** | Exports the account key and notes, encrypted under a passphrase. | None |
-| **Key rotation** | Automatic. Near the end of the key's budget the wallet signs a rotation to its pre-committed next key, and the mesh exit submits and pays for it. No prompt, no button. | One registry update |
+| **Quantum-safe authority** | A future quantum attacker should not turn a published account key into control of the wallet. | ERC-4337 v0.7 smart account; FORS+C signatures verified through Solidity and PQKeyRegistry; pre-committed rotation and bounded key use. |
+| **Private settlement** | A pool pays the recipient without naming which note in an eight-member same-denomination set was opened. | Hash-based MPC-in-the-head ring proof, local note vault, one fresh nullifier, membership checks, and a post-quantum attestation gate. |
+| **Network privacy** | Infrastructure should not see who asked to pay. | Three ML-KEM-768 onion layers, AES-256-GCM payload protection, padding, batching, delay, and operator-diverse paths. |
+| **Privacy coordination** | Privacy is a condition, not a toggle. | The Graph indexes public pool and relay signals; the wallet selects the strongest eligible decoys locally and Chainlink CRE evaluates the sealed threshold/deadline policy. |
 
-## Project Structure
+### The Graph closes the feedback loop
 
-```
-opaque/
-│
-├── frontend/                  # Landing page and wallet (Vite, Vercel)
-│   ├── index.html             #   opaque.credit
-│   ├── app.html               #   The wallet, also the extension's side panel
-│   └── src/lib/               #   Runtime, prover worker, note storage, backup
-│
-├── extension/                 # Chrome, Brave and Edge side panel build
-│
-├── backend/                   # The stack that runs on Railway
-│   ├── stack.ts               #   Six relays, executor, egress, credentials
-│   ├── mesh/                  #   Onion transport, relays, directory, chunking
-│   ├── cre/                   #   Sealing, the release decision, settlement
-│   ├── chain/                 #   Arc clients, attester, pool fill, CCTP bridge
-│   └── zk/                    #   ZKBoo ring proof (Node and browser)
-│
-├── opaque-cre/                # Chainlink CRE confidential workflow
-│   └── confidential-intent/   #   The TEE handler and its config
-│
-├── graph/                     # The Graph subgraph and its clients
-│
-├── contracts/                 # Solidity, Foundry
-│   └── src/opaque/            #   wallet/, pool/, mesh/, lib/
-│
-├── packages/
-│   ├── protocol-types/        #   The shared contract: types, codecs, errors
-│   ├── pq-wallet/             #   FORS+C signer and account SDK
-│   └── ring-client/           #   Note vault and decoy selection
-│
-├── deployments/               # Every public address on Arc testnet
-├── partner-docs/              # Chainlink, Arc and The Graph write-ups
-└── docs/                      # Spec, hosting, design notes
-```
+![The Graph privacy feedback loop](diagrams/graph.svg)
 
-## Smart Contracts
+The Graph is Opaque’s **privacy coordination layer—the brain of Opaque’s privacy mechanism.** It does not choose a real note or route. It supplies public conditions; the wallet selects the strongest eligible decoys locally.
 
-Deployed on **Arc testnet**. The source of truth is [`deployments/arc-testnet.json`](deployments/arc-testnet.json), and `backend/chain/test/deployments.test.ts` checks every address in it against the chain.
+~~~text
+ring signals: pool population · note age · ring reuse · concentration
+mesh signals: reliability · batch occupancy · recent selection count · operator diversity
+       ↓
+local decoy selection + local Markov route policy + CRE release score
+       ↓
+settlement produces fresh signals for the next payment
+~~~
+
+Read the full integration: [The Graph partner write-up](partner-docs/the-graph.md).
+
+---
+
+## Built with partners, not wrappers
+
+| Partner | What is live | Why it is core |
+|---|---|---|
+| **Arc + Circle** | USDC settlement, USDC gas, ERC-4337 accounts, seven denomination pools, CCTP V2 entry from Sepolia. | The product is programmable private USDC on Arc—not a token adapter. |
+| **Chainlink CRE** | Active opaque-confidential-release workflow in AWS Nitro; Vault DON secrets; 30-second confidentiality policy ticks. | CRE is the authority that can release a sealed payment under the payer’s conditions. |
+| **The Graph** | Arc testnet subgraph over pool and relay events, consumed by wallet routing/decoys and CRE scoring. | It makes privacy adaptive across payments instead of static or blind. |
+
+<div align="center">
+
+[Arc + Circle details](partner-docs/arc.md) · [Chainlink CRE details](partner-docs/chainlink.md) · [The Graph details](partner-docs/the-graph.md)
+
+</div>
+
+---
+
+## Live evidence
+
+| Surface | Evidence |
+|---|---|
+| **Wallet** | [opaque.credit/app.html](https://www.opaque.credit/app.html) and [browser extension](extension/README.md#install-from-the-zip) |
+| **Arc testnet** | Chain ID 5042002 · [Explorer](https://testnet.arcscan.app) · [deployment registry](deployments/arc-testnet.json) |
+| **Graph** | [opaque/v0.3.0 Subgraph Studio query endpoint](https://api.studio.thegraph.com/query/1760100/opaque/v0.3.0) |
+| **Backend** | [stack.json](https://opaque-stack-production.up.railway.app/stack.json) |
+| **CRE** | opaque-confidential-release · workflow ID 003e31eff41f5e26b3a5c7414efba42245ba4687550a43986e15e51e4e71686e |
+| **Contracts** | [Arc deployment map](deployments/arc-testnet.json), verified in chain deployment tests |
+
+### Core contracts on Arc testnet
 
 | Contract | Address | Role |
 |---|---|---|
-| **PQKeyRegistry** | [`0x6eb5…8e8f`](https://testnet.arcscan.app/address/0x6eb5b42373191121d31dfc4b5c8571c4eaf58e8f) | Each account's FORS+C key, use count and rotation |
-| **PQAccountFactory** | [`0x13be…b214`](https://testnet.arcscan.app/address/0x13beaec42922e3f63fa0dbe5bba270edf46ab214) | Deploys accounts at predictable addresses |
-| **PQAccount** (implementation) | [`0xecce…5012`](https://testnet.arcscan.app/address/0xeccec6b1e6a2e5367902675c49e577633f705012) | ERC-4337 v0.7 account |
-| **PQValidator** | [`0xfad5…6ea2`](https://testnet.arcscan.app/address/0xfad5b4149489eaf9bbe402eca4b26f9284046ea2) | Checks UserOperation signatures against the registry |
-| **RelayDirectory** | [`0xcf58…6653`](https://testnet.arcscan.app/address/0xcf588b5b8ab2fa11ccf28a5c0631da4269a36653) | Relay announcements and health reports, indexed by The Graph |
+| PQKeyRegistry | [0x6eb5…8e8f](https://testnet.arcscan.app/address/0x6eb5b42373191121d31dfc4b5c8571c4eaf58e8f) | PQ key registration, use budget, and rotation |
+| PQAccountFactory | [0x13be…b214](https://testnet.arcscan.app/address/0x13beaec42922e3f63fa0dbe5bba270edf46ab214) | Counterfactual ERC-4337 accounts |
+| RelayDirectory | [0xcf58…6653](https://testnet.arcscan.app/address/0xcf588b5b8ab2fa11ccf28a5c0631da4269a36653) | Relay identity and health events indexed by The Graph |
 
-## Tests
+---
 
-| Suite | Tests |
-|---|---|
-| `contracts` (Foundry) | 97 passing, 1 skipped |
-| `backend` (mesh, CRE, ZK, chain) | 271 passing |
-| `packages/pq-wallet` | 88 passing, 2 skipped (opt-in browser suite) |
-| `packages/protocol-types` | 16 passing |
-| `packages/ring-client` | 6 passing |
-| `graph` | 8 passing |
-| `frontend` | 9 passing |
+## Security model, stated plainly
 
-## Key Flows
+| Boundary | Enforced by | What it prevents |
+|---|---|---|
+| Account authority | PQKeyRegistry + PQ account validator | Conventional wallet key takeover and unauthorized rotation. |
+| One spend per note | Pool nullifier state | Double-spending. |
+| Ring eligibility | Pool membership validation | Synthetic/unknown decoy memberships. |
+| Payment release terms | CRE envelope + MAC-bound decision | A backend altering recipient, privacy threshold, or deadline. |
+| Route authority | Signed pinned relay directory | A Graph query inventing a relay identity or key. |
+| Early release | Fresh, healthy Graph observations | Treating a stale or broken index as strong privacy. |
 
-### Deposit
+The current V1 proof verifier is split: the hash-based MPC-in-the-head proof is checked by the attester, while Arc enforces denomination, ring membership, one-time nullifier use, recipient binding, and the live post-quantum attestation. See [the full threat model and decision log](docs/spec-v2.md).
 
-```
-Wallet: "Deposit 10 USDC"
-  → Split into notes: one 10 USDC note
-  → Derive the commitment: AES-128 under the note secret (backend/zk)
-  → One UserOperation, signed by the account's FORS+C key
-      (the first one also deploys the account through PQAccountFactory)
-  → Sent through the mesh to the exit, which forwards it to the bundler
-  → Pool: deposit(commitment), 10 USDC moves into the pool
-  → The subgraph indexes the new RingMember
-```
+---
 
-### Private payment
+## Repository map
 
-```
-Wallet: "Send 5 USDC to 0xabc…", wait for stronger privacy
-  → Pick a 5 USDC note and seven decoys from the pool (The Graph weighs them)
-  → Build the ZKBoo proof in a Web Worker: 1.08 MiB, a few seconds
-  → Encrypt the payment under a fresh key K
-  → Seal K, recipient, credential, minimum score and deadline to the CRE key
-  → Split into padded chunks, send through 3 of 6 relays
-  → The executor holds it and cannot read it
-  → CRE, within 30 s: open, score the pool, WAIT / RELEASE / DENY
-  → On RELEASE: the executor opens the payment with K, checks the recipient
-      matches, verifies the proof, and the attester signs
-  → Pool: spend(), 5 USDC to the recipient; the nullifier is marked spent
-```
+~~~text
+frontend/                  wallet + browser extension experience
+packages/pq-wallet/        FORS+C signer and ERC-4337 SDK
+packages/ring-client/      note vault and local decoy selection
+backend/mesh/              ML-KEM onion transport, relay policy, Graph clamping
+backend/zk/                hash-based MPC-in-the-head ring proof
+backend/cre/               sealed intents, release policy, settlement
+opaque-cre/                deployed Chainlink CRE confidential workflow
+graph/                     Arc subgraph, Graph client, Markov and score policies
+contracts/src/opaque/      accounts, registry, pools, verifier, relay directory
+deployments/               deployed Arc testnet addresses and start blocks
+diagrams/                  architecture diagrams used throughout this README
+~~~
 
-A payment that does not wait settles in about a minute and a half, end to end.
+## Run and verify
 
-### The release decision
+Opaque uses **Bun** for package installation, scripts, and tests.
 
-```
-CRE enclave, every 30 s
-  → GET /v1/cre/pending: intent ids and sealed envelopes, nothing else
-  → Query The Graph: every pool's size and the six relays' health
-  → For each envelope, with the ML-KEM key derived from the Vault DON seed:
-      does not open, or is for another spend           → DENY
-      score below the payer's minimum, before deadline → WAIT
-      recipient credential fails                       → DENY
-      otherwise                                        → RELEASE, with K and a tag
-  → POST /v1/cre/release: up to 60 decisions per tick
-```
+~~~bash
+git clone https://github.com/minrawsjar/Nonce0.git
+cd Nonce0
 
-### Bridging USDC from Sepolia
+for dir in packages/protocol-types packages/pq-wallet packages/ring-client graph backend frontend; do
+  (cd "$dir" && bun install)
+done
 
-```
-node chain/bridge-sepolia.ts --amount 100
-  → approve and depositForBurn on Sepolia (domain 0 → Arc, domain 26)
-  → poll Circle's attestation service (fast transfer, finality 1000)
-  → receiveMessage on Arc: USDC minted to the same address
-```
-
-## Quick Start
-
-### Prerequisites
-
-- **Node.js 22.18 or later**, which runs TypeScript without a build step
-- **Foundry**, for the contracts
-- **Bun**, for the subgraph scripts (optional)
-- **CRE CLI**, to simulate or deploy the workflow (optional)
-
-### Install and test
-
-```bash
-git clone https://github.com/minrawsjar/Opaque.git
-cd Opaque
-for d in packages/protocol-types packages/pq-wallet packages/ring-client graph backend frontend; do npm ci --prefix "$d"; done
-
-npm run typecheck:all          # every package, strict
-npm run test:all               # every suite
-node backend/zk/bench.ts       # the ring proof benchmark
+(cd graph && bun test)
+(cd backend && bun test)
+(cd frontend && bun test)
 (cd contracts && forge test)
-```
+~~~
 
-### Run the wallet against the hosted backend
+For all implementation and deployment instructions, start at [docs/README.md](docs/README.md). For protocol interfaces, read [docs/interfaces.md](docs/interfaces.md).
 
-```bash
-cd frontend
-VITE_STACK_URL=https://opaque-stack-production.up.railway.app/stack.json npm run dev
-```
+---
 
-### Run the whole stack locally
+<div align="center">
 
-```bash
-# terminal 1
-cd backend && set -a && . ./.env && set +a && node stack.ts
+Built for ETHOnline 2026 · [Architecture docs](docs/README.md) · [Partner docs](partner-docs/README.md) · [MIT License](LICENSE)
 
-# terminal 2
-cd frontend && npm run dev
-```
-
-The local stack writes `frontend/public/stack.json`, so the dev wallet talks to it and nothing else. Its variables are listed in [backend/README.md](backend/README.md#environment). Without `CRE_MODE=workflow` a stand-in in the same process makes the release decisions.
-
-## Deployment
-
-| Piece | Where | How |
-|---|---|---|
-| Wallet | Vercel, [opaque.credit](https://www.opaque.credit) | `frontend/`, with `VITE_STACK_URL` set |
-| Relays, executor, egress | Railway, one service | [docs/hosting.md](docs/hosting.md) |
-| Release decisions | Chainlink CRE, private registry | [opaque-cre/README.md](opaque-cre/README.md) |
-| Subgraph | Subgraph Studio | [graph/README.md](graph/README.md) |
-| Contracts | Arc testnet | [contracts/README.md](contracts/README.md) |
-
-## Security and Honest Limits
-
-Three things carry weight, and all three are stated plainly, because a privacy protocol that hides its gaps is the failure this project exists to move away from.
-
-**1. The ring proof is checked off chain, so an attester is trusted for soundness.** On-chain verification was measured at 1.08 MiB and about nine times an Arc block, so it was never available. The chain still checks everything else: all eight ring members are real deposits, the nullifier is used once, the right denomination goes to the bound recipient, and the attester's post-quantum key is live and within its signature budget. A dishonest attester could approve a spend no proof supports. It cannot learn who paid, because the proof is zero-knowledge, and it cannot cheat quietly, because anyone can re-verify a published proof. Trusted for soundness, never for privacy. See [AttestedRingVerifier.sol](contracts/src/opaque/pool/AttestedRingVerifier.sol).
-
-**2. There is no recovery for notes.** A note is a secret in your browser storage and nothing else. Clear your browser data without a backup and unspent notes are gone. A real version needs seed-derived notes or trial-decryption scanning.
-
-**3. The relays are not attested; the CRE enclave is.** The six relays run on one Railway service, so one operator could link a wallet's IP address to its payment. The release decision runs in an attested AWS Nitro enclave, whose code is public by design; what it protects is the data.
-
-Also by design:
-
-- **No `balanceOf` for private funds.** A deposit creates an opaque commitment. Your balance is the set of notes you hold secrets for.
-- **No event links a nullifier to a ring member.** `Spent` names the nullifier and the recipient, never the commitment it opened.
-- **The nullifier never binds the recipient.** A recipient-dependent nullifier would let one note be spent once per recipient.
-- **No admin key on any account.** Only a signature under the account's current PQ key can change that key.
-- **Secrets never travel in argv.** Railway variables are set over stdin; CRE secrets live in the Vault DON.
-
-The threat model is [spec-v2.md §3](docs/spec-v2.md). It does not claim to stop a global passive observer, collusion across all three hops, or an adversary who fills a pool with their own deposits. The decoy heuristics and the cost of a deposit raise the price of that last attack; they do not remove it.
-
-## Built With
-
-| Partner | Integration | Write-up |
-|---|---|---|
-| **Chainlink** | CRE Confidential Workflow in AWS Nitro: sealed payments, Vault DON secrets, release timing | [partner-docs/chainlink.md](partner-docs/chainlink.md) |
-| **Arc and Circle** | Settlement chain, USDC as money and gas, CCTP V2 bridging from Sepolia | [partner-docs/arc.md](partner-docs/arc.md) |
-| **The Graph** | Subgraph on Arc testnet: decoy weights, relay routing, pool privacy scores | [partner-docs/the-graph.md](partner-docs/the-graph.md) |
-| **Pimlico** | ERC-4337 bundler on Arc | |
-| **Railway and Vercel** | Backend stack and wallet hosting | |
-
-## Not the Scanner
-
-This repository began as **nonce0**, a cross-chain public-key exposure scanner. That tool still lives in [`src/`](src/) and [`bin/`](bin/) with its own tests, and has nothing to do with the payment stack. `npx nonce0 scan .` still works.
-
-## License
-
-[MIT](LICENSE)
-
-<p align="center">Built privately for ETHOnline 2026.</p>
+</div>

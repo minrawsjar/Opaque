@@ -1,151 +1,134 @@
-# Arc: Private USDC Payments
+<div align="center">
+
+# Opaque × Arc + Circle
+
+### Programmable private USDC settlement, built natively on Arc.
+
+[![Network](https://img.shields.io/badge/network-Arc%20testnet-FF7A18?style=flat-square)](https://arc.network/)
+[![Asset](https://img.shields.io/badge/asset-USDC-2775CA?style=flat-square)](https://www.circle.com/usdc)
+[![Account](https://img.shields.io/badge/account-ERC--4337%20%2B%20FORS%2BC-FF7A18?style=flat-square)](../packages/pq-wallet/)
+[![Bridge](https://img.shields.io/badge/bridge-CCTP%20V2-2775CA?style=flat-square)](https://www.circle.com/cctp)
+
+**Arc is Opaque’s settlement layer: the place where private notes become a real USDC payment under enforceable conditions.**
+
+</div>
+
+![Opaque confidential settlement on Arc](../diagrams/cre-arc.svg)
 
 > **Track:** Best DeFi/Onchain Finance Application, Arc
 
-Opaque is a private payment system for USDC on Arc. Accounts are ERC-4337 smart accounts controlled by a post-quantum key. Deposits become fixed-size USDC notes in pools. A payment is released from a pool to its recipient only when the payer's conditions are met: a privacy score, a deadline and a recipient credential. Everything settles in USDC on Arc, and USDC pays the gas.
+## Why Opaque is native to Arc
 
-## What We Built
+Opaque is not a wallet deployed onto Arc. It is a private USDC settlement flow designed around what Arc makes possible:
 
-A conditional, multi-step payment flow for USDC that hides who paid.
+| Arc primitive | What Opaque does with it | Why it is load-bearing |
+|---|---|---|
+| **USDC as money and gas** | The same asset funds the account, creates notes, pays for UserOperations, and reaches the recipient. | A post-quantum account needs no ECDSA wallet, native token, or separate gas balance. |
+| **Programmable settlement** | A pool releases fixed-denomination USDC only after proof, nullifier, recipient, and confidential-policy checks pass. | Privacy is an enforceable payment condition, not an off-chain promise. |
+| **ERC-4337** | FORS+C authorizes a smart account through PQKeyRegistry and PQValidator. | The account is controlled by a hash-based key rather than a conventional wallet signer. |
+| **CCTP V2** | USDC moves from Sepolia to the same Arc account that creates private notes. | A user can enter the private payment rail with native Circle liquidity. |
 
-```
-Wallet: "Send 20 USDC to 0xabc…", wait for stronger privacy
-  → Use a 20 USDC note the account deposited earlier (an attributable deposit)
-  → Build a proof that the note is one of eight in the 20 USDC pool
-  → Seal the payment and its conditions to a Chainlink CRE enclave
-  → Condition check, every 30 s, in the enclave:
-      pool privacy score ≥ the payer's minimum, or the deadline has come,
-      and the recipient's credential verifies
-  → Proof verified off chain, attester signs with a post-quantum key
-  → Arc: the 20 USDC pool pays the recipient; the nullifier is spent
-  → No sender is named at any step
-```
+## One conditional private USDC payment
 
-## Circle Tools Used
+~~~text
+1. Fund a PQ ERC-4337 account with USDC on Arc or through CCTP V2.
+2. Deposit USDC into fixed-denomination pools; each deposit creates a private note.
+3. Locally form an 8-member same-denomination ring and seal the payment terms.
+4. Chainlink CRE checks the sealed privacy threshold, deadline, and credential.
+5. The attester verifies the proof and provides a post-quantum authorization.
+6. Arc enforces real ring members, one unused nullifier, denomination, and recipient.
+7. The pool transfers USDC to the recipient.
+~~~
 
-### 1. Arc testnet
+The deposit is attributable by design. The later private spend does **not** name which deposited note paid.
 
-Every contract lives on Arc testnet, chain id 5042002: accounts, the key registry, seven pools, their verifiers and the relay directory. Arc's USDC gas means an account needs only one asset, so a new user funds the account with USDC and nothing else.
+## The programmable-money mechanics
 
-### 2. USDC
+| Mechanic | Arc-enforced or Arc-observed behaviour |
+|---|---|
+| **Fixed denominations** | A 20 USDC note only hides among other 20 USDC notes. Amount privacy comes from interchangeable buckets, not an opaque balance. |
+| **One-time spending** | The pool marks a fresh nullifier before moving USDC, preventing a note from being released twice. |
+| **Conditional release** | CRE may release as soon as public privacy conditions meet the payer’s sealed threshold; otherwise it settles at the payer’s latest-settlement deadline. |
+| **Recipient binding** | The final recipient must match the released payment terms before settlement proceeds. |
+| **PQ key lifecycle** | The registry tracks FORS+C use and accepts rotation only under the current post-quantum authority. |
+| **Relay health telemetry** | RelayDirectory emits health and identity events that The Graph turns into privacy coordination signals. |
 
-USDC is the only asset. Pools hold the ERC-20 interface at `0x3600000000000000000000000000000000000000` (6 decimals) in fixed notes of 1, 2, 5, 10, 20, 50 and 100 USDC. The fixed sizes are what make a note indistinguishable from the other seven in its ring. Gas is paid in native USDC (18 decimals), the same asset through its other interface.
+## Settlement contracts
 
-### 3. CCTP V2
+All contracts are live on Arc testnet. The deployment JSON is the complete source of truth.
 
-[`backend/chain/bridge-sepolia.ts`](../backend/chain/bridge-sepolia.ts) moves USDC from Ethereum Sepolia to Arc with a fast transfer. We used it to bring 2,000 USDC across for testing; 1,999.796 USDC arrived, a fee of about 1 basis point ([mint on Arc](https://testnet.arcscan.app/tx/0x915f269212309846818fd0cacc505a42e427fa5a7afc0776f14a417454f66dfd)).
+| Contract | Address | Settlement role |
+|---|---|---|
+| **PQKeyRegistry** | [0x6eb5…8e8f](https://testnet.arcscan.app/address/0x6eb5b42373191121d31dfc4b5c8571c4eaf58e8f) | PQ key registration, use budget, and rotation |
+| **PQAccountFactory** | [0x13be…b214](https://testnet.arcscan.app/address/0x13beaec42922e3f63fa0dbe5bba270edf46ab214) | Counterfactual ERC-4337 account deployment |
+| **PQAccount implementation** | [0xecce…5012](https://testnet.arcscan.app/address/0xeccec6b1e6a2e5367902675c49e577633f705012) | UserOperation execution under PQ authority |
+| **PQValidator** | [0xfad5…6ea2](https://testnet.arcscan.app/address/0xfad5b4149489eaf9bbe402eca4b26f9284046ea2) | FORS+C validation for EntryPoint v0.7 |
+| **RelayDirectory** | [0xcf58…6653](https://testnet.arcscan.app/address/0xcf588b5b8ab2fa11ccf28a5c0631da4269a36653) | Relay announcements and health reporting |
+| **EntryPoint v0.7** | 0x0000000071727de22e5e9d8baf0edac6f37da032 | ERC-4337 execution entrypoint |
 
-```
-approve + depositForBurn on Sepolia (domain 0 → Arc, domain 26)
-  → maxFee: twice Circle's current quote; minFinalityThreshold: 1000
-  → poll Circle's attestation API until the message is complete
-  → receiveMessage on Arc: USDC minted to the same address
-```
+## CCTP V2 entry path
+
+Opaque uses CCTP V2 for USDC onboarding from Ethereum Sepolia.
+
+~~~text
+approve + depositForBurn on Sepolia, domain 0 → Arc domain 26
+  → maxFee set to twice Circle’s current quote
+  → poll Circle attestation until final
+  → receiveMessage on Arc
+  → USDC reaches the same account that deposits private notes
+~~~
 
 | Contract | Address |
 |---|---|
-| TokenMessengerV2 (Sepolia) | `0x8fe6b999dc680ccfdd5bf7eb0974218be2542daa` |
-| MessageTransmitterV2 (Arc) | `0xe737e5cebeeba77efe34d4aa090756590b1ce275` |
-| USDC (Sepolia) | `0x1c7d4b196cb0c7b01d743fbc6116a902379c7238` |
+| TokenMessengerV2, Sepolia | 0x8fe6b999dc680ccfdd5bf7eb0974218be2542daa |
+| MessageTransmitterV2, Arc | 0xe737e5cebeeba77efe34d4aa090756590b1ce275 |
+| USDC, Sepolia | 0x1c7d4b196cb0c7b01d743fbc6116a902379c7238 |
 
-### Not used, and why
+## Engineering evidence
 
-- **Gateway** was in the design for sourcing a deposit from a unified cross-chain balance. It stays on the roadmap; the build uses CCTP instead.
-- **Circle Wallets** hold keys that sign with elliptic curves. Opaque's whole point is an account no such key can move, so the account signs with its own FORS+C key.
-- **App Kits** and **StableFX** were not needed for a single-asset payment flow.
-
-## How We Meet the Criteria
-
-### Meaningful use of Arc and USDC
-
-The product is USDC payments on Arc, end to end. The account, the deposits, the pools, the payment and the gas are all USDC on Arc.
-
-### Advanced programmable money flows
-
-- **Conditional payments.** A payment waits until its pool's privacy score reaches the payer's minimum, or until the payer's deadline, and only if the recipient's credential verifies. The conditions are sealed so no server can change them.
-- **Onchain automation.** The Chainlink CRE workflow evaluates every waiting payment every 30 seconds. The attester rotates its own post-quantum key on Arc when four signatures are left. The relays report their health to `RelayDirectory` every ten minutes.
-- **Multi-step settlement.** Deposit, sealed intent, enclave decision, proof verification, post-quantum attestation, then the pool's release. Each step is checked by the next, and the pool checks all eight ring members are real deposits before it pays.
-
-### Stablecoin-native design
-
-Fixed USDC denominations are what the privacy rests on: a 20 USDC note is interchangeable with every other 20 USDC note. USDC gas lets the account pay for its own UserOperations, so the wallet needs no MetaMask and no second token.
-
-## Architecture on Arc
-
-```
-┌──────────────────────────┐  UserOperation   ┌──────────────────────────────┐
-│ PQ ACCOUNT (ERC-4337)    │ ───────────────▶ │ ENTRYPOINT v0.7              │
-│ FORS+C key, 32 uses      │                  │ PQValidator checks FORS+C    │
-└──────────────────────────┘                  │ against PQKeyRegistry        │
-                                              └──────────────┬───────────────┘
-                                                             │ deposit(commitment)
-┌──────────────────────────┐                  ┌──────────────▼───────────────┐
-│ EGRESS (executor)        │     spend()      │ PRIVATE POOL                 │
-│ after a CRE release and  │ ───────────────▶ │ one per size, 1 to 100 USDC  │
-│ an attester signature    │                  │ 8 real deposits, fresh       │
-└──────────────────────────┘                  │ nullifier, pays recipient    │
-                                              └──────────────┬───────────────┘
-                                                             │ verify
-                                              ┌──────────────▼───────────────┐
-                                              │ ATTESTED RING VERIFIER       │
-                                              │ attester's FORS+C signature, │
-                                              │ live key, within its budget  │
-                                              └──────────────────────────────┘
-```
-
-## Contract Addresses
-
-All on Arc testnet. The full list, with deployment blocks, is [`deployments/arc-testnet.json`](../deployments/arc-testnet.json).
-
-| Contract | Address |
+| What we learned | Response in Opaque |
 |---|---|
-| **PQKeyRegistry** | [`0x6eb5b42373191121d31dfc4b5c8571c4eaf58e8f`](https://testnet.arcscan.app/address/0x6eb5b42373191121d31dfc4b5c8571c4eaf58e8f) |
-| **PQAccountFactory** | [`0x13beaec42922e3f63fa0dbe5bba270edf46ab214`](https://testnet.arcscan.app/address/0x13beaec42922e3f63fa0dbe5bba270edf46ab214) |
-| **PQAccount** (implementation) | [`0xeccec6b1e6a2e5367902675c49e577633f705012`](https://testnet.arcscan.app/address/0xeccec6b1e6a2e5367902675c49e577633f705012) |
-| **PQValidator** | [`0xfad5b4149489eaf9bbe402eca4b26f9284046ea2`](https://testnet.arcscan.app/address/0xfad5b4149489eaf9bbe402eca4b26f9284046ea2) |
-| **RelayDirectory** | [`0xcf588b5b8ab2fa11ccf28a5c0631da4269a36653`](https://testnet.arcscan.app/address/0xcf588b5b8ab2fa11ccf28a5c0631da4269a36653) |
-| **EntryPoint v0.7** | `0x0000000071727de22e5e9d8baf0edac6f37da032` |
+| Native USDC and ERC-20 USDC use different decimals. | All amount handling carries explicit units; native gas uses 18 decimals while pooled ERC-20 USDC uses 6. |
+| Public RPC log windows and bursts are bounded. | Pool scanning pages logs in 10,000-block windows and falls back across Circle, QuickNode, and Blockdaemon RPCs. |
+| A public RPC is not a bundler. | UserOperations use Pimlico’s keyless Arc endpoint for EntryPoint v0.7. |
+| Small operations must stay economically viable. | First registry/verifier/pool deployment dry-run cost about 0.17 USDC; a relay health report costs about 0.0018 USDC. |
 
-## What We Learned Building on Arc
+## Scope choices
 
-- **Two decimals for one asset.** Native USDC has 18 decimals and pays gas; the ERC-20 has 6 and is what the pools hold. Mixing them is a factor of 10¹², so every amount in the code carries its unit.
-- **Log ranges.** The public RPC serves `eth_getLogs` over 20,000 blocks and refuses 50,000. The ring scanner pages in 10,000-block windows and only re-reads what is new.
-- **Rate limits.** A burst of reads at boot hit the public RPC's limit and crash-looped the backend once. [`backend/chain/pool.ts`](../backend/chain/pool.ts) now falls back from Circle's RPC to QuickNode's and Blockdaemon's public endpoints.
-- **Bundler.** The public RPC is not a bundler, so UserOperations go to Pimlico's keyless endpoint, which serves EntryPoint v0.7 on Arc.
-- **Cost.** A dry run of the first deployment (registry, verifier, pool) came to about 0.17 USDC of gas. A relay health report costs about 0.0018 USDC.
+- **CCTP V2, not Gateway:** CCTP provides the working Sepolia-to-Arc entry route. Gateway remains a future unified-liquidity integration.
+- **Opaque PQ account, not Circle Wallets:** Circle Wallets use conventional elliptic-curve signers; Opaque needs the account authority itself to be post-quantum.
+- **One stablecoin, not FX:** A single USDC asset and fixed buckets protect amount anonymity. StableFX and App Kits do not improve this V1 flow.
 
-## Source Code
+## Source evidence
 
-| File | Purpose |
+| File | What it proves |
 |---|---|
-| [`contracts/src/opaque/pool/PrivatePool.sol`](../contracts/src/opaque/pool/PrivatePool.sol) | Note custody, one fixed denomination per pool |
-| [`contracts/src/opaque/pool/AttestedRingVerifier.sol`](../contracts/src/opaque/pool/AttestedRingVerifier.sol) | Checks the ring, the nullifier and the attester's post-quantum signature |
-| [`contracts/src/opaque/wallet/PQKeyRegistry.sol`](../contracts/src/opaque/wallet/PQKeyRegistry.sol) | Each account's FORS+C key and signature budget |
-| [`contracts/src/opaque/wallet/PQAccount.sol`](../contracts/src/opaque/wallet/PQAccount.sol) | The ERC-4337 account |
-| [`backend/chain/pq-wallet-chain.ts`](../backend/chain/pq-wallet-chain.ts) | Account deployment and UserOperations on Arc |
-| [`backend/chain/pool.ts`](../backend/chain/pool.ts) | Pool client and the RPC fallback |
-| [`backend/chain/bridge-sepolia.ts`](../backend/chain/bridge-sepolia.ts) | CCTP V2 from Sepolia |
+| [PrivatePool.sol](../contracts/src/opaque/pool/PrivatePool.sol) | USDC note custody and fixed-denomination pool rules |
+| [AttestedRingVerifier.sol](../contracts/src/opaque/pool/AttestedRingVerifier.sol) | Post-quantum attestation gate for an eligible ring spend |
+| [PQKeyRegistry.sol](../contracts/src/opaque/wallet/PQKeyRegistry.sol) | PQ key lifecycle and bounded authorization |
+| [PQAccount.sol](../contracts/src/opaque/wallet/PQAccount.sol) | ERC-4337 smart account under PQ authority |
+| [pq-wallet-chain.ts](../backend/chain/pq-wallet-chain.ts) | Account deployment and UserOperations on Arc |
+| [pool.ts](../backend/chain/pool.ts) | Pool interaction and RPC fallback |
+| [bridge-sepolia.ts](../backend/chain/bridge-sepolia.ts) | CCTP V2 bridging flow |
 
-## Product Feedback for Circle
+## Product feedback for Arc + Circle
 
-### What worked well
+**What worked well**
 
-- **USDC as gas** removed a whole onboarding step. The account is funded and paid for with the asset it exists to move.
-- **CCTP V2 fast transfer** brought 2,000 USDC across for about 1 basis point, with one script and no bridge UI.
-- **The three EntryPoints are already deployed** on Arc testnet, so we deployed no ERC-4337 infrastructure of our own.
+- Arc testnet already exposes the ERC-4337 EntryPoint, so Opaque needed no account-abstraction infrastructure deployment
+- USDC gas removes an onboarding asset: the account is funded and pays with what it exists to send.
+- CCTP v2 was smooth and helpful
 
-### Suggestions
 
-- **Publish the RPC limits.** We found the `eth_getLogs` range and the burst limit by hitting them. A documented limit, or a clearer error than `Request exceeds defined limit`, would save a crash loop.
-- **A bundler on the public RPC**, or a documented recommended one for Arc testnet.
-- **One page on the two USDC interfaces**, with the decimals side by side.
+**What would make this easier**
 
-## Future Plans with Arc
+- Publish public RPC log-range and burst limits
+- Document a recommended ERC-4337 UserOperation bundler for Arc testnet alongside the public RPC
 
-1. **Arc mainnet**, once the attester's trust is reduced and the relays run under separate operators.
-2. **Gateway at deposit time**, so a user can fund a note from a USDC balance on any chain.
-3. **Recipient-side Gateway draws**, so a recipient on another chain gets USDC there after a private settlement.
+## Next on Arc
 
-## Why Opaque on Arc
+1. Deploy the same private-settlement rail to Arc mainnet after hardening the backend for production
+2. Add Gateway funding, so a note can be created from a USDC balance on any supported chain.
+3. Let recipients use Gateway to receive USDC on their preferred chain after private Arc settlement.
 
-Private payments need a stable unit, or the amount itself identifies the payment. They need cheap settlement, because every note is a transaction. And a post-quantum account needs gas it can pay for itself. USDC on Arc is all three.
+> **Why Arc:** private payments need a stable unit, cheap programmable settlement, and gas an account can pay without a second token. USDC on Arc supplies all three.

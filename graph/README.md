@@ -98,9 +98,11 @@ bun run typecheck
 ## Composed Privacy Context
 
 [`companion/`](./companion) uses **The Graph Client** to compose Opaque’s live
-Studio data with a pinned Graph Network USDC source. [`sentinel/`](./sentinel)
-exposes that context via three zero-argument MCP tools for agents, developers,
-and judges.
+Arc Studio data with a pinned Graph Network Arbitrum USDC source. The sidecar
+is intentional: it adds an independent public settlement-liveness signal while
+Arc remains Opaque’s operational privacy source of truth. [`sentinel/`](./sentinel)
+exposes the combined context via three zero-argument MCP tools for agents,
+developers, and judges.
 
 ```bash
 bun run companion:build:live
@@ -108,7 +110,7 @@ bun run sentinel:serve
 ```
 
 Opaque’s own Studio subgraph is public and rate-limited—**no API key is used**.
-Only the companion’s optional external Graph Network USDC source needs
+Only the independent Arbitrum Graph Network USDC source needs
 `GRAPH_GATEWAY_API_KEY` in a local `graph/.env`. Without it, Opaque’s
 operational subgraph remains separate and the companion reports external
 settlement context as `UNKNOWN`.
@@ -125,7 +127,7 @@ Graph Network USDC source ─┘
 
 The client combines two live Graph-provider sources without making either one
 a source of private payment data. It reports only public aggregate conditions:
-pool/relay readiness from Opaque Studio and optional recent Arbitrum USDC
+pool/relay readiness from Opaque Studio and independent recent Arbitrum USDC
 context from The Graph Network. It never receives the real note, recipient,
 chosen decoys, route, proof, sealed intent, or authorization.
 

@@ -1,12 +1,24 @@
-# Chainlink: Confidential Workflow
+<div align="center">
+
+# Opaque × Chainlink CRE
+
+### Confidential policy release for private USDC settlement.
+
+[![Workflow](https://img.shields.io/badge/workflow-opaque--confidential--release-375BD2?style=flat-square)](../opaque-cre/)
+
+**Chainlink CRE is where Opaque evaluates a payer’s sealed privacy policy without handing those terms to the ordinary backend, and enforces settlement on Arc**
+
+</div>
+
+![Opaque confidential settlement flow](../diagrams/cre-arc.svg)
 
 > **Track:** Best Confidential Workflow, Chainlink
 
-Opaque's payments are sealed to a key that exists only inside a Chainlink CRE enclave. The workflow `opaque-confidential-release` runs every 30 seconds in AWS Nitro, opens each waiting payment, and decides whether it goes now, waits for a stronger privacy set, or is refused. Nothing else in the system can read a payment's recipient before it settles, including the server that holds it.
+Opaque's payments are sealed to a key that exists only inside a Chainlink CRE enclave. The workflow `opaque-confidential-release` runs every 30 seconds in the enclave, opens each waiting payment, and decides whether it goes now, waits for a stronger privacy set, or is refused. The server holding a pending payment cannot read its recipient; it receives that payment's key only after CRE authorizes release.
 
 ## What We Built
 
-A private USDC payment on Arc is hidden among eight deposits. Sent the moment it is signed, it can still be matched to its deposit by timing. So the payer can ask the payment to wait until the pool is strong enough, with a deadline. Those terms, and the recipient, are the sensitive inputs. They go to the enclave and nowhere else.
+A private USDC payment on Arc is hidden among eight deposit ring. Sent the moment it is signed, it can still be matched to its deposit by timing. So the payer can ask the payment to wait until the pool is strong enough, with a deadline. Those terms, and the recipient, are the sensitive inputs. They go to the enclave and nowhere else.
 
 ```
 Wallet: "Send 5 USDC to 0xabc…", wait for stronger privacy, settle by 18:00
@@ -33,7 +45,6 @@ Wallet: "Send 5 USDC to 0xabc…", wait for stronger privacy, settle by 18:00
 | **Status** | `ACTIVE` |
 | **Registry** | Chainlink-hosted private registry |
 | **Enclave** | AWS Nitro, `us-west-2`, pinned in `handlerInTee` |
-| **Trigger** | Cron, `*/30 * * * * *` |
 | **Vault DON secrets** | `INTENT_KEY_SEED`, `CREDENTIAL_MAC` |
 | **Executions** | `SUCCESS` every 30 seconds; the last 20 listed on 11 September 2026 all succeeded |
 | **Backend report** | [`stack.json`](https://opaque-stack-production.up.railway.app/stack.json) reports `"confidentialExecution": "ATTESTED"` |
@@ -57,7 +68,7 @@ cre execution list opaque-confidential-release --target staging-settings
 | `HTTPClient.sendRequest` | `onTick` | Three kinds of call, all made from inside the enclave, with `cacheSettings: { store: false }` |
 | `runtime.getSecret` | `onTick` | Releases the ML-KEM seed and the MAC from the Vault DON into the enclave |
 | `runtime.now()` | `onTick` | The time deadlines are judged against |
-| `cre workflow simulate` | `npm run simulate` | One real tick against the live executor, with secrets from a local file |
+| `cre workflow simulate` | `bun run simulate` | One real tick against the live executor, with secrets from a local file |
 | `cre secrets create` | `secrets.live.yaml` | Puts the two secrets in the Vault DON; the file holds names only |
 | `cre workflow deploy` | private registry | Deploys with the logged-in account: no wallet, no gas |
 

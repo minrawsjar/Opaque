@@ -11,4 +11,5 @@ backend/deploy/config
 backend/mesh/deploy/config
 frontend/public/stack.json
 **/node_modules
+**/.graphclient
 .git

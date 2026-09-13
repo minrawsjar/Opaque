@@ -1,11 +1,13 @@
 # Opaque Privacy Sentinel — Graph Client Companion
 
-This is a **read-only judge and developer companion**. It is not imported by Opaque's wallet, ring client, relay mesh, CRE workflow, contracts, or settlement backend.
+This is the public privacy-context service for judges and developers. It is not
+imported by Opaque's wallet, ring client, relay mesh, CRE workflow, contracts,
+or settlement backend.
 
-It composes two live Graph products through [The Graph Client](https://thegraph.com/docs/en/subgraphs/querying/graph-client/README/):
+It composes two live Graph-provider sources through [The Graph Client](https://thegraph.com/docs/en/subgraphs/querying/graph-client/README/):
 
 1. Opaque's live Arc testnet Studio subgraph: ring cohort and relay-mesh aggregates.
-2. The Graph Network's pinned [Arbitrum USDC subgraph](https://thegraph.com/explorer/subgraphs/9J9RwHsMK3vNoZaoMcHJuCeuDhUZmJ5fqvS59c4ZSmEQ?chain=arbitrum-one&view=About): public USDC transfer context.
+2. The Graph Network's pinned [Arbitrum USDC subgraph](https://thegraph.com/explorer/subgraphs/9J9RwHsMK3vNoZaoMcHJuCeuDhUZmJ5fqvS59c4ZSmEQ?chain=arbitrum-one&view=About): an intentional independent public settlement-liveness context.
 
 ## Safety boundary
 
@@ -16,8 +18,8 @@ The generated query asks only for public aggregates and public transfer records.
 ## Build generated Graph Client artifacts
 
 Opaque's live Studio source needs **no key**; it is queried directly at its
-public, rate-limited Studio endpoint. Only the optional second source—the
-external Arbitrum USDC subgraph on **The Graph Network**—needs a gateway key.
+public, rate-limited Studio endpoint. The intentional independent second
+source—the Arbitrum USDC subgraph on **The Graph Network**—needs a gateway key.
 
 To enable that external source, create `graph/.env` locally:
 
@@ -32,7 +34,7 @@ cd graph
 /Users/adityamane/.bun/bin/bun run companion:build:live
 ```
 
-The command produces ignored `.graphclient/` artifacts from the two pinned source schemas. It explicitly passes the local env file to Graph Client, whose Node CLI does not inherit Bun's automatic env loading. Without this optional key, the Sentinel continues to read Opaque Studio and reports the external settlement context as `UNKNOWN`. Do not commit the key or generated credentials.
+The command produces ignored `.graphclient/` artifacts from the two pinned source schemas. It explicitly passes the local env file to Graph Client, whose Node CLI does not inherit Bun's automatic env loading. Without this key, the Sentinel continues to read Opaque Studio and reports the independent settlement context as `UNKNOWN`. Do not commit the key or generated credentials.
 
 ## Read-only MCP interface
 
