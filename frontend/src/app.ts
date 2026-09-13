@@ -39,6 +39,7 @@ function showBootError(message: string): void {
 }
 
 let rt: WalletRuntime;
+let runtimeReady = false;
 /** USDC at the account's own address: sent to it, not yet deposited as notes. */
 let accountUsdc = 0;
 let notes: readonly NoteSummary[] = [];
@@ -474,6 +475,11 @@ async function onDeposit(): Promise<void> {
   }
   const notes = count === 1 ? 'one note' : `${count} notes`;
   button.disabled = true;
+  const progressDialog = el<HTMLDialogElement>('deposit-progress-dialog');
+  const progressLog = el('deposit-progress-log');
+  if (!progressDialog.open) progressDialog.showModal();
+  progressLog.textContent = 'Preparing your deposit…';
+  status.textContent = '';
   try {
     // Deposits come from the account: ONE transaction however many notes,
     // signed by its PQ key, where a plain wallet would need a confirmation
@@ -503,13 +509,13 @@ async function onDeposit(): Promise<void> {
         return;
       }
       // This also verifies/switches the chain when an account was already exposed.
-      if (!await connectFundingWallet()) return;
-      status.textContent = `Confirm in your funding wallet: ${topUp.toFixed(2)} USDC to your account, for ${notes} and gas…`;
+      if (!await connectFundingWallet()) { progressDialog.close(); return; }
+      progressLog.textContent = `Confirm in your funding wallet: ${topUp.toFixed(2)} USDC to your account, for ${notes} and gas…`;
       await rt.fundAccount(account, topUp);
       // A lagging RPC node can still show the old balance; the deposit checks it.
       await settle(async () => (await rt.accountFunds(account)).usdc >= want - 0.005);
     }
-    status.textContent = state.active
+    progressLog.textContent = state.active
       ? `Signing one deposit of ${notes} with your account's PQ key; a public bundler submits it…`
       : `Signing your account's first operation with its PQ key: it sets the account up on chain and deposits ${notes}…`;
     const made = await rt.app.depositNotes(rt.scopes
@@ -517,11 +523,14 @@ async function onDeposit(): Promise<void> {
       .map((s) => ({ scope: s, count: counts.get(Number(s.denomination) / 1e6)! })));
     const waiting = made.filter((n) => n.state !== 'AVAILABLE').length;
     await refreshPools();
+    progressLog.textContent = 'Deposit submitted on chain.';
+    progressDialog.close();
     status.textContent = waiting === 0
       ? `Deposited ${amount} USDC as ${describe(counts)}, on chain.${fillNote(counts.keys()) || ' Spendable now.'}`
       : `Deposit sent; ${waiting} of ${notes} still wait for the chain to confirm them.`;
     await Promise.all([refreshNotes(), renderBudget().catch(() => undefined)]);
   } catch (error) {
+    if (progressDialog.open) progressDialog.close();
     status.textContent = isRejected(error) ? '' : `Deposit failed: ${(error as Error).message}`;
     // A deposit stopped halfway (a later popup rejected) still funded the
     // notes before it; listing finds them, so the balance shows what landed.
@@ -579,6 +588,11 @@ function renderHops(): void {
 }
 
 async function refreshRing(): Promise<void> {
+  if (!runtimeReady || rt.scopes.length === 0) {
+    el('freshness-now').textContent = '—';
+    el('pool-size').textContent = 'Loading…';
+    return;
+  }
   try {
     // Once a pool holds a ring, its score is the mesh's: the 1-USDC one stands for all.
     const [privacy, path] = await Promise.all([rt.readPrivacy(rt.scopes[rt.scopes.length - 1]!), rt.pathFor(), refreshPools()]);
@@ -640,11 +654,16 @@ async function onSend(event: SubmitEvent): Promise<void> {
 
   const button = el<HTMLButtonElement>('arm');
   button.disabled = true;
+  const progressDialog = el<HTMLDialogElement>('send-progress-dialog');
+  const progressLog = el('send-progress-log');
+  if (!progressDialog.open) progressDialog.showModal();
+  progressLog.textContent = 'Preparing your private transfer…';
+  status.textContent = '';
   let done = 0;
   let count = 0;
   try {
     // Only notes whose pool already holds a ring's worth of deposits.
-    status.textContent = 'Checking which of your notes their pools can hide…';
+    progressLog.textContent = 'Checking which of your notes their pools can hide…';
     await refreshPools();
     const ready = available.filter(ringReady);
     const pick = makeAmount(amount, denominations(), countByValue(ready));
@@ -653,6 +672,7 @@ async function onSend(event: SubmitEvent): Promise<void> {
       status.textContent = `Your notes can't make exactly ${amount} USDC: each is sent whole, with no change.`
         + (ready.length > 0 ? ` Ready to send: ${describe(countByValue(ready))}.` : '')
         + (waiting.length > 0 ? ` Waiting for their pool to fill: ${describe(countByValue(waiting))}.` : '');
+      progressDialog.close();
       return;
     }
     const queue = [...pick].flatMap(([usdc, n]) => ready.filter((note) => usdcOf(note) === usdc).slice(0, n));
@@ -660,13 +680,13 @@ async function onSend(event: SubmitEvent): Promise<void> {
 
     // Out of band, BEFORE paying: the authority learns a recipient, never a
     // payment, and cannot tie the credential to the moment it is used.
-    status.textContent = 'Getting a policy credential for this recipient…';
+    progressLog.textContent = 'Getting a policy credential for this recipient…';
     const credentialHandle = await rt.obtainCredential(recipient as `0x${string}`);
 
     // Each note is its own payment, with its own proof and ~1 MB upload,
     // PAYMENT_LANES at a time.
     const group = `send-${Date.now()}`;
-    status.textContent = count === 1
+    progressLog.textContent = count === 1
       ? 'Building the ring proof in this browser (a few seconds — the note secret never leaves the page)…'
       : `Building ${count} ring proofs in this browser and sending each across the mesh (the note secrets never leave the page)…`;
     // Immediate: settle on arrival (score 0), with a deadline taken per note
@@ -685,21 +705,22 @@ async function onSend(event: SubmitEvent): Promise<void> {
       sent.unshift({ handle: ref.statusHandle as string, recipient, at: Date.now(), group, usdc: usdcOf(note) });
       saveSent();
       done++;
-      if (count > 1) status.textContent = `Sent ${done} of ${count} across the mesh…`;
+      if (count > 1) progressLog.textContent = `Sent ${done} of ${count} across the mesh…`;
     });
     const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
     if (failures.length > 0) {
       const first = failures[0]!.reason as Error;
       throw new Error(`${failures.length} of ${count} note payments failed: ${first.message}`);
     }
-    status.textContent = count === 1
-      ? 'Sent across the mesh. It usually settles within seconds; Activity shows when it lands.'
-      : `Sent ${amount} USDC as ${count} payments across the mesh. Each usually settles within seconds; Activity shows when they land.`;
+    progressLog.textContent = 'Transfer submitted across the mesh.';
+    progressDialog.close();
+    status.textContent = 'Sent across the mesh. It usually settles within seconds. Check the Activity tab to see when it lands.';
     el<HTMLInputElement>('recipient').value = '';
     await refreshNotes();
     showView('activity');
     renderActivity();
   } catch (error) {
+    if (progressDialog.open) progressDialog.close();
     status.textContent = done === 0
       ? `Not sent: ${(error as Error).message}`
       : `Sent ${done} of ${count}; the remaining note payments failed: ${(error as Error).message}`;
@@ -838,6 +859,7 @@ async function init(): Promise<void> {
   }
   // The PQ account key lives in this browser; create one the first time.
   try { await rt.app.walletState(); } catch { await rt.app.createWallet(); }
+  runtimeReady = true;
 
   // One failed read must not stop the rest of the page from starting.
   await Promise.all([

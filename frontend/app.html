@@ -67,7 +67,7 @@
             <p class="immediate-note" id="immediate-settlement">Send immediately — settles as soon as the network accepts it.</p>
             <label class="field deadline-field" id="privacy-deadline-wrap" for="privacy-deadline" hidden><span>Settle no later than</span><input id="privacy-deadline" type="datetime-local" autocomplete="off" aria-describedby="privacy-deadline-help" disabled><small id="privacy-deadline-help">This is a latest-settlement deadline, not a scheduled send time.</small></label>
           </fieldset>
-          <button class="primary" id="arm" type="submit">Review private transfer</button>
+          <button class="primary" id="arm" type="submit">Send privately</button>
           <p class="status" id="send-status" role="status"></p>
         </form>
       </section>
@@ -88,6 +88,18 @@
   </div>
   <footer id="boot-error" role="alert" hidden></footer>
 </main>
+
+<dialog id="send-progress-dialog">
+  <div class="dialog-head"><div><p class="eyebrow">Private transfer</p><h2>Sending privately</h2></div></div>
+  <p class="send-progress-copy">Your transfer is moving through the privacy flow. Keep this window open until submission completes.</p>
+  <p class="send-progress-log" id="send-progress-log" role="status" aria-live="polite"></p>
+</dialog>
+
+<dialog id="deposit-progress-dialog">
+  <div class="dialog-head"><div><p class="eyebrow">Account funding</p><h2>Depositing privately</h2></div></div>
+  <p class="send-progress-copy">Your USDC is being converted into fixed-denomination notes. Keep this window open until submission completes.</p>
+  <p class="send-progress-log" id="deposit-progress-log" role="status" aria-live="polite"></p>
+</dialog>
 
 <dialog id="receive-dialog">
   <form method="dialog" class="dialog-head"><div><p class="eyebrow">Receive on Arc</p><h2>Your Opaque account</h2></div><button value="close" aria-label="Close">×</button></form>
