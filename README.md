@@ -108,36 +108,6 @@ USDC deposit → fixed-denomination private note → local 8-member ring
 | **Private settlement** | A pool pays the recipient without naming which note in an eight-member same-denomination set was opened. | Hash-based MPC-in-the-head ring proof, local note vault, one fresh nullifier, membership checks, and a post-quantum attestation gate. |
 | **Network privacy** | Infrastructure should not see who asked to pay. | Three ML-KEM-768 onion layers, AES-256-GCM payload protection, padding, batching, delay, and operator-diverse paths. |
 | **Privacy coordination** | Privacy is a condition, not a toggle. | The Graph’s Arc intelligence layer indexes public pool and relay signals; the wallet selects the strongest eligible decoys locally, while Chainlink CRE evaluates the sealed threshold/deadline policy. |
-
-### The Graph closes the feedback loop
-
-![The Graph privacy feedback loop](diagrams/graph.svg)
-
-The Graph is Opaque’s **privacy coordination layer—the brain of Opaque’s privacy mechanism.** It helps the wallet select the strongest eligible decoys locally.
-
-~~~text
-ring signals: pool population · note age · ring reuse · concentration
-mesh signals: reliability · batch occupancy · recent selection count · operator diversity
-       ↓
-local decoy selection + local Markov route policy + CRE release score
-       ↓
-settlement produces fresh signals for the next payment
-~~~
-
-The Graph Client composes that operational Arc state with an independent
-standardized Arbitrum USDC context, and Privacy Sentinel exposes the combined
-aggregate view through MCP. Read the full integration in [The Graph partner write-up](partner-docs/the-graph.md).
-
-### Privacy Sentinel: the inspectable Graph product
-
-Privacy Sentinel is the public interface to that composition. It publishes
-aggregate ring readiness, mesh health, indexed-block freshness, and external
-USDC context through a typed MCP surface—enough for a judge or agent to inspect
-why privacy conditions are strong or weak, without exposing a user’s note,
-recipient, route, or identity.
-
-[Open Privacy Sentinel](https://opaque-production.up.railway.app/healthz) · [MCP endpoint](https://opaque-production.up.railway.app/mcp)
-
 ---
 
 ## Partner integrations
